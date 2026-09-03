@@ -3,10 +3,11 @@
  *
  * Uses only `NEXT_PUBLIC_*` config. Safe to import from Client Components.
  *
- * PHASE 0: initialization is lazy and guarded. No Firestore reads/writes,
- * no Auth flows are implemented yet — those arrive in later phases.
+ * Initialization is lazy and guarded. PHASE 1 adds Firestore access
+ * (`getFirestoreDb`); Auth flows are still intentionally absent.
  */
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 import { clientEnv } from "@/config/env";
 
@@ -33,4 +34,13 @@ export function getFirebaseApp(): FirebaseApp | null {
     messagingSenderId: c.messagingSenderId,
     appId: c.appId,
   });
+}
+
+/**
+ * Returns the Firestore instance, or `null` when Firebase env vars are not
+ * configured. Callers must handle the `null` case.
+ */
+export function getFirestoreDb(): Firestore | null {
+  const app = getFirebaseApp();
+  return app ? getFirestore(app) : null;
 }

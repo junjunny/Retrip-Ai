@@ -5,10 +5,28 @@
  * the domain so later phases have a stable import path (`@/types`). Fields will
  * be filled in phase by phase — do not over-specify them now.
  */
+import type { Timestamp } from "firebase/firestore";
 
-/** A planned trip (Phase 1). */
+/** One stop in a trip's plan. `order` is system-managed (see features/trip). */
+export interface ItineraryItem {
+  order: number;
+  /** "HH:mm", 24-hour. */
+  time: string;
+  placeName: string;
+}
+
+/** A planned trip (Phase 1). One Firestore document under `trips/{tripId}`. */
 export interface Trip {
-  id: string;
+  tripId: string;
+  title: string;
+  destination: string;
+  /** "YYYY-MM-DD" — stored as a plain string, no timezone conversion. */
+  startDate: string;
+  /** "YYYY-MM-DD" — stored as a plain string, no timezone conversion. */
+  endDate: string;
+  itinerary: ItineraryItem[];
+  createdAt: Timestamp;
+  status: "active" | "completed";
 }
 
 /** A member of the traveling group (Phase 2). */

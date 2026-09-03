@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Re:Trip AI — Firestore Security Rules
+//
+// PHASE 1: no authentication yet. Rather than `allow read, write: if true`,
+// reads are open but writes are shape-validated and trips are immutable
+// (no client-side update/delete this phase). Tighten further (App Check /
+// rate limiting / per-trip edit tokens) in a later phase.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidNewTrip(tripId) {
+      let d = request.resource.data;
+      return d.tripId == tripId
+        && d.title is string && d.title.size() > 0
+        && d.destination is string && d.destination.size() > 0
+        && d.startDate is string && d.endDate is string
+        && d.startDate <= d.endDate
+        && d.itinerary is list && d.itinerary.size() > 0
+        && d.status == 'active'
+        && d.createdAt == request.time;
+    }
+
+    match /trips/{tripId} {
+      allow read: if true;
+      allow create: if isValidNewTrip(tripId);
+
+      // Trips are not editable or deletable from the client in PHASE 1.
+      allow update, delete: if false;
+
+      // Sub-collections (participants, preferences, …) arrive in later phases.
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+  }
+}

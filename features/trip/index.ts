@@ -1,8 +1,8 @@
 /**
- * features/trip — Re:Trip domain logic (PHASE 0 placeholder).
+ * features/trip — Re:Trip "trip" domain.
  *
- * Business logic for the "trip" domain lives here, decoupled from UI and from
- * other features. Engines (Travel State, Re:Plan) will be written as pure,
- * testable functions: input -> calculation -> output. Nothing implemented yet.
+ * `trip.ts`        pure logic (validation, itinerary normalization, id)
+ * `tripService.ts` Firestore access (createTrip / getTrip)
  */
-export {};
+export * from "./trip";
+export * from "./tripService";
