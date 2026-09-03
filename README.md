@@ -108,4 +108,5 @@ npm run build
 | 11 | Demo Mode |
 | 12 | Deployment & QA |
 
-**Current phase: 0 — complete.**
+**Current phase: 2 — complete.** (0 architecture, 1 trip + itinerary, 2 login-less
+group preference collection.)

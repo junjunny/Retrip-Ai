@@ -9,6 +9,6 @@ import { appConfig } from "@/config/app";
 describe("phase 0 setup", () => {
   it("exposes app config", () => {
     expect(appConfig.name).toBe("Re:Trip AI");
-    expect(appConfig.phase).toBe(1);
+    expect(appConfig.phase).toBe(2);
   });
 });

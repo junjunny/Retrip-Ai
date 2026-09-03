@@ -3,8 +3,12 @@ import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
 /**
- * PHASE 0: test runner wiring only. Business-logic tests (Travel State Engine,
- * Re:Plan Engine) go under `tests/` in later phases.
+ * Test runner wiring.
+ *
+ * `server-only` is stubbed: it throws on import outside the React Server
+ * environment (which vitest is not), so server modules like `lib/firebase/admin`
+ * and `features/participant/participantService` could not be integration-tested
+ * otherwise. The real guard still protects the production client bundle.
  */
 export default defineConfig({
   test: {
@@ -14,6 +18,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(import.meta.dirname, "."),
+      "server-only": resolve(import.meta.dirname, "tests/stubs/server-only.ts"),
     },
   },
 });

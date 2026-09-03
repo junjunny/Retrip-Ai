@@ -29,14 +29,54 @@ export interface Trip {
   status: "active" | "completed";
 }
 
-/** A member of the traveling group (Phase 2). */
+/** Survey status for a participant (Phase 2). */
+export type PreferenceStatus = "not_started" | "completed";
+
+/**
+ * A member of the traveling group (Phase 2). Stored at
+ * `trips/{tripId}/participants/{participantId}`. Written/read only via the
+ * Admin SDK in server Route Handlers — never from the browser.
+ *
+ * `secretHash` (sha256 of the participant's opaque secret) is NOT part of this
+ * type: it never leaves the server.
+ */
 export interface Participant {
-  id: string;
+  participantId: string;
+  tripId: string;
+  nickname: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  preferenceStatus: PreferenceStatus;
 }
 
-/** A participant's stated preferences (Phase 2). */
+/** Fixed preference axes — a per-participant integer vector (see PREFERENCE_MIN/MAX). */
+export type PreferenceKey =
+  | "nature"
+  | "culture"
+  | "food"
+  | "shopping"
+  | "activity"
+  | "relaxation"
+  | "sightseeing";
+
+export type PreferenceVector = Record<PreferenceKey, number>;
+
+export type TravelPace = "slow" | "normal" | "fast";
+export type IndoorOutdoor = "indoor" | "outdoor" | "balanced";
+
+/**
+ * A participant's structured preferences (Phase 2). Stored at
+ * `trips/{tripId}/preferences/{participantId}`. Deterministic values only — no
+ * free text — so Phase 3 can compare preference vectors across the group.
+ */
 export interface Preference {
   participantId: string;
+  tripId: string;
+  preferences: PreferenceVector;
+  pace: TravelPace;
+  indoorOutdoor: IndoorOutdoor;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 /** The group's aggregated intended experience (Phase 4). */

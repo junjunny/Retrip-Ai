@@ -5,5 +5,5 @@ export const appConfig = {
   name: "Re:Trip AI",
   slogan: "Your Plan Can Change. Your Trip Doesn't Have To.",
   /** Current development phase — see README "Development Phases". */
-  phase: 1,
+  phase: 2,
 } as const;

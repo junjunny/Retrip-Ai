@@ -20,6 +20,7 @@ import {
   initializeApp,
   type App,
 } from "firebase-admin/app";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 import { serverEnv } from "@/config/env";
 
@@ -44,4 +45,13 @@ export function getFirebaseAdminApp(): App | null {
   return initializeApp({
     credential: cert(serviceAccount as Parameters<typeof cert>[0]),
   });
+}
+
+/**
+ * Returns the Admin Firestore instance, or `null` when the service-account
+ * credential is not configured. Server-only. Callers must handle `null`.
+ */
+export function getAdminDb(): Firestore | null {
+  const app = getFirebaseAdminApp();
+  return app ? getFirestore(app) : null;
 }
