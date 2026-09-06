@@ -41,16 +41,25 @@ export const serverEnv = {
     assertServer("firebaseServiceAccount");
     return process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   },
-  get tourApiKey(): string | undefined {
-    assertServer("tourApiKey");
-    return process.env.TOUR_API_KEY;
+  /**
+   * data.go.kr issues ONE service key per account, shared across every subscribed
+   * service — 한국관광공사 관광정보 / 방문자수 / 무장애 여행정보 + 기상청 단기예보.
+   * `.env.local` currently keeps `TOUR_API_KEY_MAIN/VISITOR/ACCESSIBILITY` +
+   * `WEATHER_API_KEY` all holding the same value; `_MAIN` is read as canonical
+   * with fallbacks so any one of them being set is enough.
+   */
+  get dataPortalServiceKey(): string | undefined {
+    assertServer("dataPortalServiceKey");
+    return (
+      process.env.TOUR_API_KEY_MAIN ||
+      process.env.TOUR_API_KEY_VISITOR ||
+      process.env.TOUR_API_KEY_ACCESSIBILITY ||
+      process.env.WEATHER_API_KEY
+    );
   },
-  get weatherApiKey(): string | undefined {
-    assertServer("weatherApiKey");
-    return process.env.WEATHER_API_KEY;
-  },
-  get kakaoApiKey(): string | undefined {
-    assertServer("kakaoApiKey");
+  /** Kakao REST API key (Local + Mobility). Separate from data.go.kr. */
+  get kakaoRestApiKey(): string | undefined {
+    assertServer("kakaoRestApiKey");
     return process.env.KAKAO_API_KEY;
   },
   get llmApiKey(): string | undefined {

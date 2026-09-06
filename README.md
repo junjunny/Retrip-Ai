@@ -52,7 +52,11 @@ features/     Domain logic, decoupled from UI and from each other
   trip/  experience/  travel-state/  replan/
 lib/          External-service / infra adapters (no API calls from components)
   firebase/   client.ts (browser)  ·  admin.ts (server-only)
-  tourapi/  weather/  kakao/  llm/
+  api/        external data adapters (server-only) — external response → Re:Trip domain model
+    tour/     tourism.ts · visitors.ts · accessibility.ts   (한국관광공사, one data.go.kr key)
+    weather/  kma.ts (단기예보) · grid.ts (lat/lng → nx/ny)
+    kakao/    place.ts (Local) · route.ts (Mobility directions)
+  llm/        (Phase 9)
 types/        Shared domain types (Trip, Participant, Preference, …)
 config/       env.ts (env access boundary)  ·  app.ts (static config)
 tests/        Vitest specs — engine tests land here
@@ -108,5 +112,6 @@ npm run build
 | 11 | Demo Mode |
 | 12 | Deployment & QA |
 
-**Current phase: 2 — complete.** (0 architecture, 1 trip + itinerary, 2 login-less
-group preference collection.)
+**Current phase: 3-A — external data adapters.** (0 architecture, 1 trip +
+itinerary, 2 login-less group preference collection, 3-A TourAPI/KMA/Kakao
+adapters → domain models.)

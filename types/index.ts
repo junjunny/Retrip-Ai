@@ -7,6 +7,9 @@
  */
 import type { Timestamp } from "firebase/firestore";
 
+/** External-source domain models (TourAPI / KMA / Kakao) — see types/external.ts. */
+export * from "./external";
+
 /** One stop in a trip's plan. `order` is system-managed (see features/trip). */
 export interface ItineraryItem {
   order: number;
