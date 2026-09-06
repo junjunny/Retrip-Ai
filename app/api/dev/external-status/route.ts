@@ -20,6 +20,9 @@ import {
 } from "@/lib/api";
 import { probeHost } from "@/lib/api/probe";
 
+// four probes + six adapter calls, each up to ~9s with retries — give it room
+export const maxDuration = 60;
+
 const YMD = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
 
 const adapterProbes: { source: string; run: () => Promise<unknown> }[] = [
