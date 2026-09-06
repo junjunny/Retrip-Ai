@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyRowPatch,
+  dropRow,
   generateTripId,
   normalizeItinerary,
   validateTripDraft,
@@ -90,6 +92,35 @@ describe("normalizeItinerary", () => {
     expect(normalizeItinerary([{ time: "09:00", placeName: " 감천 " }])[0]).toEqual(
       { order: 1, time: "09:00", placeName: "감천" },
     );
+  });
+});
+
+describe("itinerary row editing", () => {
+  const rows = [
+    { key: "a", time: "14:00", placeName: "해운대" },
+    { key: "b", time: "16:00", placeName: "청사포" },
+  ];
+
+  it("applyRowPatch updates only the matching row", () => {
+    expect(applyRowPatch(rows, "b", { placeName: "청사포항" })).toEqual([
+      { key: "a", time: "14:00", placeName: "해운대" },
+      { key: "b", time: "16:00", placeName: "청사포항" },
+    ]);
+  });
+
+  it("applyRowPatch is a no-op for an unknown key", () => {
+    expect(applyRowPatch(rows, "zzz", { placeName: "x" })).toEqual(rows);
+  });
+
+  it("dropRow removes the matching row", () => {
+    expect(dropRow(rows, "a")).toEqual([
+      { key: "b", time: "16:00", placeName: "청사포" },
+    ]);
+  });
+
+  it("dropRow never removes the last remaining row", () => {
+    const one = [{ key: "a", time: "14:00", placeName: "해운대" }];
+    expect(dropRow(one, "a")).toEqual(one);
   });
 });
 

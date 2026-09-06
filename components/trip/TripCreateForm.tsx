@@ -3,22 +3,21 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { createTrip, TripValidationError } from "@/features/trip";
-import type { ItineraryDraft } from "@/features/trip";
-
-interface Row extends ItineraryDraft {
-  key: string;
-}
+import { applyRowPatch, createTrip, dropRow, TripValidationError } from "@/features/trip";
+import type { ItineraryDraft, ItineraryRow } from "@/features/trip";
 
 let rowSeq = 0;
-const newRow = (time = "", placeName = ""): Row => ({
+const newRow = (time = "", placeName = ""): ItineraryRow => ({
   key: `row-${rowSeq++}`,
   time,
   placeName,
 });
 
-const fieldClass =
-  "w-full min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-200";
+// No width here — callers set it (`w-full` for stacked fields, explicit widths
+// for the itinerary row so `type="time"` can't hog the whole row).
+const fieldBase =
+  "min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-200";
+const fieldClass = `${fieldBase} w-full`;
 
 export function TripCreateForm() {
   const router = useRouter();
@@ -26,15 +25,15 @@ export function TripCreateForm() {
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [rows, setRows] = useState<Row[]>([newRow("14:00")]);
+  // lazy: `newRow` mutates a module counter, so it must not run on every render
+  const [rows, setRows] = useState<ItineraryRow[]>(() => [newRow("14:00")]);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const updateRow = (key: string, patch: Partial<ItineraryDraft>) =>
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+    setRows((rs) => applyRowPatch(rs, key, patch));
   const addRow = () => setRows((rs) => [...rs, newRow()]);
-  const removeRow = (key: string) =>
-    setRows((rs) => (rs.length <= 1 ? rs : rs.filter((r) => r.key !== key)));
+  const removeRow = (key: string) => setRows((rs) => dropRow(rs, key));
 
   async function handleSubmit() {
     if (submitting) return;
@@ -114,20 +113,20 @@ export function TripCreateForm() {
         </label>
       </div>
 
-      <fieldset className="flex flex-col gap-3">
+      <fieldset className="flex min-w-0 flex-col gap-3">
         <legend className="text-sm font-medium">여행 일정</legend>
         {rows.map((row) => (
           <div key={row.key} className="flex items-center gap-2">
             <input
               type="time"
               aria-label="시간"
-              className={`${fieldClass} w-28 shrink-0`}
+              className={`${fieldBase} w-[8.5rem] shrink-0 px-2`}
               value={row.time}
               onChange={(e) => updateRow(row.key, { time: e.target.value })}
             />
             <input
               aria-label="장소명"
-              className={`${fieldClass} min-w-0 flex-1`}
+              className={`${fieldBase} min-w-0 flex-1`}
               value={row.placeName}
               onChange={(e) => updateRow(row.key, { placeName: e.target.value })}
               placeholder="해운대"

@@ -75,6 +75,25 @@ export function normalizeItinerary(items: ItineraryDraft[]): ItineraryItem[] {
     }));
 }
 
+/** An itinerary draft row with a stable React key (used by the create form). */
+export interface ItineraryRow extends ItineraryDraft {
+  key: string;
+}
+
+/** Patch one row of the itinerary editor by key. Pure. */
+export function applyRowPatch(
+  rows: ItineraryRow[],
+  key: string,
+  patch: Partial<ItineraryDraft>,
+): ItineraryRow[] {
+  return rows.map((r) => (r.key === key ? { ...r, ...patch } : r));
+}
+
+/** Remove one row, but never below a single row (itinerary must stay ≥ 1). Pure. */
+export function dropRow(rows: ItineraryRow[], key: string): ItineraryRow[] {
+  return rows.length <= 1 ? rows : rows.filter((r) => r.key !== key);
+}
+
 /**
  * Short, shareable, collision-resistant trip id, e.g. "8F3K2A91".
  * ponytail: modulo bias over a 31-char alphabet is negligible for collision
