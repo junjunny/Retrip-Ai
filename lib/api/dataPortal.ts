@@ -78,6 +78,26 @@ export async function dataPortalGet<TItem = Record<string, unknown>>(
     throw e;
   }
 
+  // Success uses `response.header.resultCode`; parameter/validation errors come
+  // back flat as `{ resultCode, resultMsg }` (e.g. INVALID_REQUEST_PARAMETER).
+  const flat = body as { resultCode?: string; resultMsg?: string };
+  if (
+    typeof flat.resultCode === "string" &&
+    !(body as { response?: unknown }).response
+  ) {
+    if (flat.resultCode === "00" || flat.resultCode === "0000") return [];
+    if (flat.resultCode === "03") return [];
+    const cls = classifyResultCode(flat.resultCode, opts.source);
+    if (cls instanceof ExternalApiError && (cls.kind === "auth" || cls.kind === "rate_limit")) {
+      throw cls;
+    }
+    throw new ExternalApiError(
+      "bad_response",
+      opts.source,
+      flat.resultMsg ?? `result code ${flat.resultCode}`,
+    );
+  }
+
   const header = (body as { response?: { header?: { resultCode?: string } } })?.response
     ?.header;
   const code = header?.resultCode;

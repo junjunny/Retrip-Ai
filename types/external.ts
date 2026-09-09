@@ -40,12 +40,15 @@ export interface TourismPlace {
 export interface VisitorData {
   /** baseYmd — "YYYYMMDD" as provided by the API */
   date: string;
-  /** signguCd (기초지자체) or mreaCd (광역시도) */
+  /** areaCode (광역시도, metco) or signguCode (시군구, locgo) */
   regionCode: string | null;
+  /** areaNm / signguNm */
   regionName: string | null;
-  /** touDivNm — e.g. 관광객 / 현지인(외지인 제외) etc., as provided */
+  /** daywkDivNm — 요일 (월요일 … 일요일), as provided */
+  dayOfWeek: string | null;
+  /** touDivNm — "현지인(a)" or "외지인(b)"; 외지인 ≈ tourists from outside the region */
   visitorType: string | null;
-  /** touNum */
+  /** touNum (API sends it as "4674516.0") */
   visitorCount: number | null;
   /** the API's aggregation unit; fixed, documents that this is not live data */
   granularity: "daily";

@@ -126,24 +126,42 @@ describe("tourism normalize", () => {
 });
 
 describe("visitor normalize", () => {
-  it("maps daily visitor fields and pins granularity", () => {
+  it("maps real locgo fields (signguCode/signguNm, touNum '.0', daywkDivNm)", () => {
     expect(
       visitorInternal.normalize({
-        baseYmd: "20260101",
-        signguCd: "26350",
-        signguNm: "부산 해운대구",
-        touDivNm: "관광객(외지인)",
-        touNum: "123456",
+        baseYmd: "20260801",
+        signguCode: "11110",
+        signguNm: "종로구",
+        daywkDivCd: "6",
+        daywkDivNm: "토요일",
+        touDivCd: "2",
+        touDivNm: "외지인(b)",
+        touNum: "402500.0",
       }),
     ).toEqual({
-      date: "20260101",
-      regionCode: "26350",
-      regionName: "부산 해운대구",
-      visitorType: "관광객(외지인)",
-      visitorCount: 123456,
+      date: "20260801",
+      regionCode: "11110",
+      regionName: "종로구",
+      dayOfWeek: "토요일",
+      visitorType: "외지인(b)",
+      visitorCount: 402500,
       granularity: "daily",
       source: "tour-datalab-visitor",
     });
+  });
+
+  it("maps real metco fields (areaCode/areaNm)", () => {
+    const v = visitorInternal.normalize({
+      baseYmd: "20260803",
+      areaCode: "11",
+      areaNm: "서울특별시",
+      daywkDivNm: "월요일",
+      touDivNm: "현지인(a)",
+      touNum: "4674516.0",
+    });
+    expect(v.regionCode).toBe("11");
+    expect(v.regionName).toBe("서울특별시");
+    expect(v.visitorCount).toBe(4674516);
   });
 });
 
@@ -262,5 +280,29 @@ describe("dataPortalGet envelope handling", () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(envelope({ item: [] }, "30"))));
     const { fetchTourismByArea } = await import("@/lib/api/tour/tourism");
     await expect(fetchTourismByArea({ areaCode: 6 })).rejects.toBeInstanceOf(ExternalApiError);
+  });
+
+  it("handles the flat param-error envelope { resultCode, resultMsg }", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              resultCode: "10",
+              resultMsg: "INVALID_REQUEST_PARAMETER_ERROR(areaCd)",
+            }),
+            { status: 200 },
+          ),
+        ),
+      ),
+    );
+    const { fetchMetroVisitors } = await import("@/lib/api/tour/visitors");
+    await expect(
+      fetchMetroVisitors({ startYmd: "20260801", endYmd: "20260807" }),
+    ).rejects.toMatchObject({
+      kind: "bad_response",
+      message: expect.stringContaining("INVALID_REQUEST_PARAMETER"),
+    });
   });
 });

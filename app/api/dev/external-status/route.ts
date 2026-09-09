@@ -30,13 +30,15 @@ const adapterProbes: { source: string; run: () => Promise<unknown> }[] = [
   {
     source: "tour/visitors",
     run: () =>
-      fetchMetroVisitors(26, {
-        startYmd: YMD(new Date(Date.now() - 14 * 864e5)),
-        endYmd: YMD(new Date(Date.now() - 7 * 864e5)),
-        numOfRows: 3,
+      // visitor data is published with a lag (~1 month) — look ~45 days back
+      fetchMetroVisitors({
+        startYmd: YMD(new Date(Date.now() - 52 * 864e5)),
+        endYmd: YMD(new Date(Date.now() - 45 * 864e5)),
+        regionCode: "26", // 부산
+        numOfRows: 500,
       }),
   },
-  { source: "tour/accessibility", run: () => fetchAccessibility(126508) },
+  { source: "tour/accessibility", run: () => fetchAccessibility(849929) },
   { source: "weather/kma", run: () => fetchShortTermForecast({ latitude: 35.1587, longitude: 129.1603 }) },
   { source: "kakao/place", run: () => searchPlacesByKeyword("해운대", { size: 3 }) },
   {

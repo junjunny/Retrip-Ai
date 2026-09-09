@@ -1,13 +1,14 @@
 /**
  * 한국관광공사 무장애 여행 정보_GW (data.go.kr 15101897) → `AccessibilityData`.
  *
- * Operation (KorService2):
- *   detailWithTour2   무장애 편의시설 상세 (contentId 단위)
+ * Operation: KorWithService2/detailWithTour2 — 무장애 편의시설 상세 (contentId 단위).
+ * (KorWithService2 is the barrier-free TourAPI service; areaBasedList2 /
+ * searchKeyword2 list barrier-free places, detailWithTour2 gives facilities.)
  *
- * The API returns Korean free-text descriptions per facility field (wheelchair,
- * elevator, parking, restroom, braileblock, audioguide, …). This adapter keeps
- * them verbatim and lists which fields were populated. It does NOT estimate
- * "이동 난이도" or "피로도" — that is Travel State Engine's job (§3-C).
+ * The API returns Korean free-text descriptions per facility field ("" when the
+ * facility is absent). This adapter keeps them verbatim and lists which fields
+ * were populated. It does NOT estimate "이동 난이도" or "피로도" — that is Travel
+ * State Engine's job.
  *
  * SERVER ONLY.
  */
@@ -18,35 +19,41 @@ import type { AccessibilityData } from "@/types";
 import { str } from "../coerce";
 import { dataPortalGet } from "../dataPortal";
 
-const SERVICE = "B551011/KorService2";
+const SERVICE = "B551011/KorWithService2";
 const SOURCE = "tour/accessibility";
 const MOBILE = { MobileOS: "ETC", MobileApp: "RetripAI" };
 const REVALIDATE = 60 * 60 * 6;
 
-// The facility fields detailWithTour2 returns (besides contentid/contenttypeid).
+// Facility fields detailWithTour2 returns (verified against a real response).
 const FACILITY_FIELDS = [
+  "parking",
+  "publictransport",
+  "route",
+  "ticketoffice",
+  "promotion",
   "wheelchair",
   "exit",
   "elevator",
-  "parking",
   "restroom",
-  "route",
-  "stroller",
-  "lactationroom",
+  "auditorium",
+  "room",
+  "handicapetc",
   "braileblock",
-  "audioguide",
-  "guidehuman",
-  "bigprint",
-  "guidedog",
   "helpdog",
-  "hearinghandicapetc",
+  "guidehuman",
+  "audioguide",
+  "bigprint",
+  "brailepromotion",
+  "guidesystem",
+  "blindhandicapetc",
   "signguide",
   "videoguide",
-  "blindhandicapetc",
-  "auditorium",
-  "publictransport",
-  "promotion",
-  "handicapetc",
+  "hearingroom",
+  "hearinghandicapetc",
+  "stroller",
+  "lactationroom",
+  "babysparechair",
+  "infantsfamilyetc",
 ] as const;
 
 type RawWithItem = Record<string, unknown>;

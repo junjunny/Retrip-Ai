@@ -2,11 +2,15 @@
  * 한국관광공사 빅데이터 지역별 방문자수_GW (data.go.kr 15101972) → `VisitorData[]`.
  *
  * Operations (DataLabService):
- *   metcoRegnVisitrDDList   광역시도별 일자별 방문자 수
- *   locgoRegnVisitrDDList   기초지자체별 일자별 방문자 수
+ *   metcoRegnVisitrDDList   광역시도별 일자별 방문자 수 (17개 시도 전체 반환)
+ *   locgoRegnVisitrDDList   시군구별 일자별 방문자 수 (전 시군구 반환)
  *
- * The data is **daily unique-visitor counts** from KT/SKT mobile data — this
- * adapter never calls it "real-time crowding". It only normalizes the numbers.
+ * Both operations take ONLY a date range — no region-filter param (a region
+ * arg returns INVALID_REQUEST_PARAMETER_ERROR). Callers filter client-side.
+ *
+ * The data is **daily unique-visitor counts** from mobile-carrier data — this
+ * adapter never calls it "real-time crowding". touDivNm splits 현지인(a) vs
+ * 외지인(b); 외지인 ≈ tourists from outside the region.
  *
  * SERVER ONLY.
  */
@@ -28,8 +32,10 @@ type RawVisitorItem = Record<string, unknown>;
 function normalize(raw: RawVisitorItem): VisitorData {
   return {
     date: str(raw.baseYmd) ?? "",
-    regionCode: str(raw.signguCd) ?? str(raw.mreaCd) ?? null,
-    regionName: str(raw.signguNm) ?? str(raw.mreaNm) ?? null,
+    // metco -> areaCode/areaNm ; locgo -> signguCode/signguNm
+    regionCode: str(raw.signguCode) ?? str(raw.areaCode) ?? null,
+    regionName: str(raw.signguNm) ?? str(raw.areaNm) ?? null,
+    dayOfWeek: str(raw.daywkDivNm),
     visitorType: str(raw.touDivNm) ?? str(raw.touDivCd) ?? null,
     visitorCount: num(raw.touNum),
     granularity: "daily",
@@ -39,47 +45,45 @@ function normalize(raw: RawVisitorItem): VisitorData {
 
 const usable = (v: VisitorData) => v.date !== "";
 
-interface DateRange {
+export interface VisitorQuery {
   /** "YYYYMMDD" */
   startYmd: string;
   /** "YYYYMMDD" */
   endYmd: string;
+  /** keep only this region code (client-side filter; the API returns all) */
+  regionCode?: string | number;
   numOfRows?: number;
   pageNo?: number;
 }
 
-/** Metro-level (시도) daily visitor counts. `areaCd` is the 광역시도 code. */
-export async function fetchMetroVisitors(
-  areaCd: number | string,
-  range: DateRange,
+async function fetchVisitors(
+  operation: "metcoRegnVisitrDDList" | "locgoRegnVisitrDDList",
+  q: VisitorQuery,
 ): Promise<VisitorData[]> {
-  const items = await dataPortalGet<RawVisitorItem>(SERVICE, "metcoRegnVisitrDDList", {
+  const items = await dataPortalGet<RawVisitorItem>(SERVICE, operation, {
     ...MOBILE,
-    startYmd: range.startYmd,
-    endYmd: range.endYmd,
-    areaCd,
-    numOfRows: range.numOfRows ?? 100,
-    pageNo: range.pageNo ?? 1,
+    startYmd: q.startYmd,
+    endYmd: q.endYmd,
+    numOfRows: q.numOfRows ?? 1000,
+    pageNo: q.pageNo ?? 1,
   }, { source: SOURCE, revalidateSeconds: REVALIDATE });
-  return items.map(normalize).filter(usable);
+
+  let out = items.map(normalize).filter(usable);
+  if (q.regionCode !== undefined) {
+    const code = String(q.regionCode);
+    out = out.filter((v) => v.regionCode === code);
+  }
+  return out;
 }
 
-/** District-level (시군구) daily visitor counts. */
-export async function fetchDistrictVisitors(
-  areaCd: number | string,
-  signguCd: number | string,
-  range: DateRange,
-): Promise<VisitorData[]> {
-  const items = await dataPortalGet<RawVisitorItem>(SERVICE, "locgoRegnVisitrDDList", {
-    ...MOBILE,
-    startYmd: range.startYmd,
-    endYmd: range.endYmd,
-    areaCd,
-    signguCd,
-    numOfRows: range.numOfRows ?? 100,
-    pageNo: range.pageNo ?? 1,
-  }, { source: SOURCE, revalidateSeconds: REVALIDATE });
-  return items.map(normalize).filter(usable);
+/** Metro-level (시도) daily visitor counts. Pass `regionCode` (e.g. "26" 부산) to filter. */
+export function fetchMetroVisitors(q: VisitorQuery): Promise<VisitorData[]> {
+  return fetchVisitors("metcoRegnVisitrDDList", q);
+}
+
+/** District-level (시군구) daily visitor counts. Pass `regionCode` (e.g. "26350" 해운대구) to filter. */
+export function fetchDistrictVisitors(q: VisitorQuery): Promise<VisitorData[]> {
+  return fetchVisitors("locgoRegnVisitrDDList", q);
 }
 
 export const _internal = { normalize };

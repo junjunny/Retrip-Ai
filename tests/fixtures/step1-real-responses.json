@@ -1,0 +1,402 @@
+{
+  "tourism_areaBased": [
+    {
+      "id": "129156",
+      "contentTypeId": 12,
+      "name": "가덕도 등대",
+      "address": "부산광역시 강서구 외양포로 10",
+      "areaCode": "6",
+      "sigunguCode": "1",
+      "categoryCode": "A01011600",
+      "latitude": 35.0006471157,
+      "longitude": 128.8295937487,
+      "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/81/3342781_image2_1.jpg",
+      "tel": null,
+      "source": "tour-korservice"
+    },
+    {
+      "id": "2726843",
+      "contentTypeId": 12,
+      "name": "가덕도 연대봉",
+      "address": "부산광역시 강서구 천성동",
+      "areaCode": "6",
+      "sigunguCode": "1",
+      "categoryCode": "A01010400",
+      "latitude": 35.0317518247,
+      "longitude": 128.8216713782,
+      "imageUrl": null,
+      "tel": null,
+      "source": "tour-korservice"
+    }
+  ],
+  "tourism_keyword": [
+    {
+      "id": "2929116",
+      "contentTypeId": 38,
+      "name": "다비치안경 해운대해수욕장입구점",
+      "address": "부산광역시 해운대구 구남로 11-1 (우동)",
+      "areaCode": null,
+      "sigunguCode": null,
+      "categoryCode": null,
+      "latitude": 35.1628751551535,
+      "longitude": 129.159811309804,
+      "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/14/4019314_image2_1.jpg",
+      "tel": null,
+      "source": "tour-korservice"
+    },
+    {
+      "id": "126081",
+      "contentTypeId": 12,
+      "name": "해운대해수욕장",
+      "address": "부산광역시 해운대구 해운대해변로 264 (우동)",
+      "areaCode": null,
+      "sigunguCode": null,
+      "categoryCode": null,
+      "latitude": 35.1590840227225,
+      "longitude": 129.160278564827,
+      "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/34/3090534_image2_1.JPG",
+      "tel": null,
+      "source": "tour-korservice"
+    }
+  ],
+  "visitors_metco": [
+    {
+      "date": "20260803",
+      "regionCode": "26",
+      "regionName": "부산광역시",
+      "dayOfWeek": "월요일",
+      "visitorType": "현지인(a)",
+      "visitorCount": 1484056,
+      "granularity": "daily",
+      "source": "tour-datalab-visitor"
+    },
+    {
+      "date": "20260803",
+      "regionCode": "26",
+      "regionName": "부산광역시",
+      "dayOfWeek": "월요일",
+      "visitorType": "외지인(b)",
+      "visitorCount": 473238.5,
+      "granularity": "daily",
+      "source": "tour-datalab-visitor"
+    }
+  ],
+  "visitors_locgo": [
+    {
+      "date": "20260801",
+      "regionCode": "26350",
+      "regionName": "해운대구",
+      "dayOfWeek": "토요일",
+      "visitorType": "현지인(a)",
+      "visitorCount": 234514,
+      "granularity": "daily",
+      "source": "tour-datalab-visitor"
+    },
+    {
+      "date": "20260801",
+      "regionCode": "26350",
+      "regionName": "해운대구",
+      "dayOfWeek": "토요일",
+      "visitorType": "외지인(b)",
+      "visitorCount": 318419.5,
+      "granularity": "daily",
+      "source": "tour-datalab-visitor"
+    }
+  ],
+  "accessibility": {
+    "contentId": "849929",
+    "features": {
+      "route": "출입구까지 경사로가 설치되어 있음_무장애 편의시설",
+      "exit": "주출입구는 경사로가 있어 휠체어 접근 가능함",
+      "handicapetc": "의자식 테이블 있음",
+      "braileblock": "점자블록 있음_시각장애인 편의시설"
+    },
+    "availableFeatures": [
+      "route",
+      "exit",
+      "handicapetc",
+      "braileblock"
+    ],
+    "source": "tour-barrier-free"
+  },
+  "weather": [
+    {
+      "forecastDate": "20260909",
+      "forecastTime": "2100",
+      "nx": 99,
+      "ny": 75,
+      "temperature": 22,
+      "precipitationProbability": 0,
+      "precipitationAmount": "강수없음",
+      "skyCondition": 1,
+      "precipitationType": 0,
+      "humidity": 60,
+      "windSpeed": 7.6,
+      "source": "kma-vilagefcst"
+    },
+    {
+      "forecastDate": "20260909",
+      "forecastTime": "2200",
+      "nx": 99,
+      "ny": 75,
+      "temperature": 22,
+      "precipitationProbability": 0,
+      "precipitationAmount": "강수없음",
+      "skyCondition": 1,
+      "precipitationType": 0,
+      "humidity": 60,
+      "windSpeed": 7.4,
+      "source": "kma-vilagefcst"
+    }
+  ],
+  "kakao_place": [
+    {
+      "id": "7913306",
+      "name": "해운대해수욕장",
+      "address": "부산 해운대구 우동",
+      "roadAddress": null,
+      "category": "여행 > 관광,명소 > 해수욕장,해변",
+      "categoryGroupCode": "AT4",
+      "phone": "051-749-7612",
+      "latitude": 35.1585232170784,
+      "longitude": 129.159854668484,
+      "url": "http://place.map.kakao.com/7913306",
+      "provider": "kakao"
+    },
+    {
+      "id": "25045411",
+      "name": "해운대모래축제",
+      "address": "부산 해운대구 우동 620-3",
+      "roadAddress": "부산 해운대구 해운대해변로 264",
+      "category": "이슈 > 이벤트 > 페스티벌",
+      "categoryGroupCode": null,
+      "phone": "051-749-4062",
+      "latitude": 35.1587921803816,
+      "longitude": 129.159932007878,
+      "url": "http://place.map.kakao.com/25045411",
+      "provider": "kakao"
+    }
+  ],
+  "kakao_address": [],
+  "kakao_route": {
+    "distanceMeters": 19209,
+    "durationSeconds": 2464,
+    "taxiFare": 18900,
+    "tollFare": 1000,
+    "priority": "RECOMMEND",
+    "trafficSegments": [
+      {
+        "name": "",
+        "distanceMeters": 97,
+        "durationSeconds": 22,
+        "speedKmh": 16,
+        "trafficState": 0
+      },
+      {
+        "name": "해운대해변로",
+        "distanceMeters": 539,
+        "durationSeconds": 107,
+        "speedKmh": 17,
+        "trafficState": 3
+      },
+      {
+        "name": "중동2로",
+        "distanceMeters": 448,
+        "durationSeconds": 145,
+        "speedKmh": 15,
+        "trafficState": 3
+      },
+      {
+        "name": "해운대로",
+        "distanceMeters": 2089,
+        "durationSeconds": 363,
+        "speedKmh": 16,
+        "trafficState": 3
+      },
+      {
+        "name": "해운대로452번길",
+        "distanceMeters": 137,
+        "durationSeconds": 29,
+        "speedKmh": 18,
+        "trafficState": 3
+      },
+      {
+        "name": "",
+        "distanceMeters": 474,
+        "durationSeconds": 86,
+        "speedKmh": 25,
+        "trafficState": 3
+      },
+      {
+        "name": "해운대로394번길",
+        "distanceMeters": 194,
+        "durationSeconds": 49,
+        "speedKmh": 14,
+        "trafficState": 1
+      },
+      {
+        "name": "해운대로394번길",
+        "distanceMeters": 164,
+        "durationSeconds": 62,
+        "speedKmh": 43,
+        "trafficState": 4
+      },
+      {
+        "name": "광안대로",
+        "distanceMeters": 452,
+        "durationSeconds": 37,
+        "speedKmh": 43,
+        "trafficState": 4
+      },
+      {
+        "name": "광안대로",
+        "distanceMeters": 110,
+        "durationSeconds": 7,
+        "speedKmh": 59,
+        "trafficState": 4
+      },
+      {
+        "name": "광안대로",
+        "distanceMeters": 3203,
+        "durationSeconds": 154,
+        "speedKmh": 76,
+        "trafficState": 4
+      },
+      {
+        "name": "광안대로",
+        "distanceMeters": 938,
+        "durationSeconds": 61,
+        "speedKmh": 55,
+        "trafficState": 4
+      },
+      {
+        "name": "광안대로",
+        "distanceMeters": 150,
+        "durationSeconds": 10,
+        "speedKmh": 55,
+        "trafficState": 4
+      },
+      {
+        "name": "광안대로",
+        "distanceMeters": 23,
+        "durationSeconds": 2,
+        "speedKmh": 55,
+        "trafficState": 4
+      },
+      {
+        "name": "광안해변로",
+        "distanceMeters": 481,
+        "durationSeconds": 38,
+        "speedKmh": 43,
+        "trafficState": 4
+      },
+      {
+        "name": "황령대로",
+        "distanceMeters": 2102,
+        "durationSeconds": 174,
+        "speedKmh": 41,
+        "trafficState": 4
+      },
+      {
+        "name": "황령대로",
+        "distanceMeters": 1949,
+        "durationSeconds": 159,
+        "speedKmh": 38,
+        "trafficState": 4
+      },
+      {
+        "name": "황령대로",
+        "distanceMeters": 227,
+        "durationSeconds": 36,
+        "speedKmh": 23,
+        "trafficState": 3
+      },
+      {
+        "name": "전포대로",
+        "distanceMeters": 66,
+        "durationSeconds": 14,
+        "speedKmh": 17,
+        "trafficState": 1
+      },
+      {
+        "name": "신천대로",
+        "distanceMeters": 720,
+        "durationSeconds": 138,
+        "speedKmh": 31,
+        "trafficState": 3
+      },
+      {
+        "name": "신천대로",
+        "distanceMeters": 1051,
+        "durationSeconds": 175,
+        "speedKmh": 25,
+        "trafficState": 3
+      },
+      {
+        "name": "가야대로",
+        "distanceMeters": 1745,
+        "durationSeconds": 256,
+        "speedKmh": 26,
+        "trafficState": 3
+      },
+      {
+        "name": "가야대로",
+        "distanceMeters": 250,
+        "durationSeconds": 45,
+        "speedKmh": 33,
+        "trafficState": 3
+      },
+      {
+        "name": "냉정로",
+        "distanceMeters": 38,
+        "durationSeconds": 3,
+        "speedKmh": 40,
+        "trafficState": 4
+      },
+      {
+        "name": "가야대로548번길",
+        "distanceMeters": 474,
+        "durationSeconds": 59,
+        "speedKmh": 24,
+        "trafficState": 4
+      },
+      {
+        "name": "",
+        "distanceMeters": 269,
+        "durationSeconds": 49,
+        "speedKmh": 16,
+        "trafficState": 0
+      },
+      {
+        "name": "",
+        "distanceMeters": 136,
+        "durationSeconds": 31,
+        "speedKmh": 16,
+        "trafficState": 0
+      },
+      {
+        "name": "",
+        "distanceMeters": 112,
+        "durationSeconds": 25,
+        "speedKmh": 16,
+        "trafficState": 0
+      },
+      {
+        "name": "",
+        "distanceMeters": 525,
+        "durationSeconds": 118,
+        "speedKmh": 16,
+        "trafficState": 0
+      },
+      {
+        "name": "",
+        "distanceMeters": 46,
+        "durationSeconds": 10,
+        "speedKmh": 16,
+        "trafficState": 0
+      }
+    ],
+    "fetchedAt": "2026-09-09T11:15:05.418Z",
+    "provider": "kakao-mobility"
+  }
+}
