@@ -5,7 +5,7 @@
  * be unit-tested without a browser or Firestore. Firestore access lives in
  * `./tripService`.
  */
-import type { ItineraryItem } from "@/types";
+import type { ItineraryItem, ScheduleType } from "@/types";
 
 /** "HH:mm", 24-hour, leading zeros required (09:00 ok, 9:0 not). */
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -14,6 +14,10 @@ export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 export interface ItineraryDraft {
   time: string;
   placeName: string;
+  /** "YYYY-MM-DD"; optional — falls back to the trip's startDate. */
+  date?: string;
+  /** optional — defaults to "flexible". */
+  scheduleType?: ScheduleType;
 }
 
 /** Raw trip form values, before validation / normalization. */
@@ -56,22 +60,33 @@ export function validateTripDraft(draft: TripDraft): string[] {
 }
 
 /**
- * Sorts itinerary items by time and re-assigns `order` from 1. Items with the
- * same time keep their input order (Array.prototype.sort is stable; the explicit
- * index tiebreak makes that guarantee obvious).
+ * Sorts itinerary items by (date, time) and re-assigns `order` from 1. Items
+ * with the same date+time keep their input order (stable sort + explicit index
+ * tiebreak). New place fields start null/default; a later step resolves them.
  */
-export function normalizeItinerary(items: ItineraryDraft[]): ItineraryItem[] {
+export function normalizeItinerary(
+  items: ItineraryDraft[],
+  tripStartDate: string,
+): ItineraryItem[] {
   return items
-    .map((it, index) => ({ it, index }))
+    .map((it, index) => ({ it, index, date: it.date || tripStartDate }))
     .sort((a, b) => {
-      if (a.it.time < b.it.time) return -1;
-      if (a.it.time > b.it.time) return 1;
+      const ka = `${a.date} ${a.it.time}`;
+      const kb = `${b.date} ${b.it.time}`;
+      if (ka < kb) return -1;
+      if (ka > kb) return 1;
       return a.index - b.index;
     })
-    .map(({ it }, i) => ({
+    .map(({ it, date }, i) => ({
       order: i + 1,
+      date,
       time: it.time,
+      placeId: null,
       placeName: it.placeName.trim(),
+      latitude: null,
+      longitude: null,
+      scheduleType: it.scheduleType ?? "flexible",
+      status: "planned" as const,
     }));
 }
 

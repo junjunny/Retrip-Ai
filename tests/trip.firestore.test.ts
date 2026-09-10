@@ -73,9 +73,16 @@ d("createTrip + getTrip", () => {
     expect(trip).not.toBeNull();
     expect(trip!.title).toBe(TITLE);
     expect(trip!.destination).toBe("부산");
-    expect(trip!.itinerary).toEqual([
-      { order: 1, time: "14:00", placeName: "해운대" },
+    expect(trip!.itinerary.map((i) => [i.order, i.time, i.placeName])).toEqual([
+      [1, "14:00", "해운대"],
     ]);
+    // Phase 3-B fields are present with defaults
+    expect(trip!.itinerary[0]).toMatchObject({
+      date: trip!.startDate,
+      placeId: null,
+      scheduleType: "flexible",
+      status: "planned",
+    });
   });
 
   it("TEST 2 — stores multiple itinerary items", async () => {
@@ -103,10 +110,10 @@ d("createTrip + getTrip", () => {
       ],
     });
     const trip = await getTrip(id);
-    expect(trip!.itinerary).toEqual([
-      { order: 1, time: "14:00", placeName: "해운대" },
-      { order: 2, time: "16:00", placeName: "청사포" },
-      { order: 3, time: "18:00", placeName: "광안리" },
+    expect(trip!.itinerary.map((i) => [i.order, i.time, i.placeName])).toEqual([
+      [1, "14:00", "해운대"],
+      [2, "16:00", "청사포"],
+      [3, "18:00", "광안리"],
     ]);
   });
 

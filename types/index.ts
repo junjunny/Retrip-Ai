@@ -10,12 +10,31 @@ import type { Timestamp } from "firebase/firestore";
 /** External-source domain models (TourAPI / KMA / Kakao) — see types/external.ts. */
 export * from "./external";
 
-/** One stop in a trip's plan. `order` is system-managed (see features/trip). */
+/** FIXED items are never re-planned; FLEXIBLE ones are Re:Plan's targets. */
+export type ScheduleType = "fixed" | "flexible";
+/** "completed" items are frozen during Re:Plan (progress-point protection). */
+export type ItineraryItemStatus = "planned" | "completed";
+
+/**
+ * One stop in a trip's plan. `order` is system-managed (see features/trip).
+ *
+ * Legacy docs (Phase 1/2) only had `{ order, time, placeName }`; on read the
+ * service fills `date` (← trip.startDate), `scheduleType` ("flexible"),
+ * `status` ("planned"), and the place fields (null) — see `coerceItinerary`.
+ */
 export interface ItineraryItem {
   order: number;
+  /** "YYYY-MM-DD". */
+  date: string;
   /** "HH:mm", 24-hour. */
   time: string;
+  /** stable place ref once resolved ("kakao:{id}" | "tour:{contentId}"); null until then. */
+  placeId: string | null;
   placeName: string;
+  latitude: number | null;
+  longitude: number | null;
+  scheduleType: ScheduleType;
+  status: ItineraryItemStatus;
 }
 
 /** A planned trip (Phase 1). One Firestore document under `trips/{tripId}`. */
@@ -80,6 +99,56 @@ export interface Preference {
   indoorOutdoor: IndoorOutdoor;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+/**
+ * A place resolved by cross-checking TourAPI (관광 콘텐츠) against Kakao Local
+ * (장소/좌표). Deterministic confidence — never a blind `results[0]`.
+ * `verificationStatus: "unresolved"` and `null` coordinates are valid states
+ * ("모른다" is allowed). See `lib/place`.
+ */
+export type PlaceConfidence = "high" | "medium" | "low";
+export type PlaceVerificationStatus = "verified" | "candidate" | "unresolved";
+export type PlaceSource = "tour-korservice" | "kakao";
+
+export interface PlaceCandidate {
+  source: PlaceSource;
+  name: string;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  /** 0..1 — normalized-name similarity to the query. */
+  nameSimilarity: number;
+  /** metres from the cross-source reference, or null when coords are missing. */
+  distanceMeters: number | null;
+}
+
+export interface NormalizedPlace {
+  /** the itinerary place name / search query this was resolved from. */
+  query: string;
+  /** best display name — a verified source name, else the query. */
+  placeName: string;
+  /** "kakao:{id}" | "tour:{contentId}" | null. */
+  placeId: string | null;
+  address: string | null;
+  roadAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
+
+  tourApiContentId: string | null;
+  tourApiCategoryCode: string | null;
+  tourApiImageUrl: string | null;
+
+  kakaoPlaceId: string | null;
+  kakaoCategory: string | null;
+  kakaoPlaceUrl: string | null;
+
+  confidence: PlaceConfidence;
+  verificationStatus: PlaceVerificationStatus;
+  /** adapters that contributed data. */
+  sources: PlaceSource[];
+  /** other plausible matches kept for user disambiguation. */
+  candidates: PlaceCandidate[];
 }
 
 /** The group's aggregated intended experience (Phase 4). */

@@ -67,31 +67,60 @@ describe("validateTripDraft", () => {
 });
 
 describe("normalizeItinerary", () => {
-  it("sorts by time and re-numbers order from 1", () => {
-    const result = normalizeItinerary([
-      { time: "18:00", placeName: "광안리" },
-      { time: "14:00", placeName: "해운대" },
-      { time: "16:00", placeName: "청사포" },
+  const D = "2026-09-10";
+
+  it("sorts by time, re-numbers order, fills the new fields with defaults", () => {
+    const result = normalizeItinerary(
+      [
+        { time: "18:00", placeName: "광안리" },
+        { time: "14:00", placeName: "해운대" },
+        { time: "16:00", placeName: "청사포" },
+      ],
+      D,
+    );
+    expect(result.map((i) => [i.order, i.time, i.placeName])).toEqual([
+      [1, "14:00", "해운대"],
+      [2, "16:00", "청사포"],
+      [3, "18:00", "광안리"],
     ]);
-    expect(result).toEqual([
-      { order: 1, time: "14:00", placeName: "해운대" },
-      { order: 2, time: "16:00", placeName: "청사포" },
-      { order: 3, time: "18:00", placeName: "광안리" },
-    ]);
+    expect(result[0]).toMatchObject({
+      date: D,
+      placeId: null,
+      latitude: null,
+      longitude: null,
+      scheduleType: "flexible",
+      status: "planned",
+    });
   });
 
-  it("keeps input order for equal times (stable)", () => {
-    const result = normalizeItinerary([
-      { time: "14:00", placeName: "해운대" },
-      { time: "14:00", placeName: "청사포" },
-    ]);
+  it("keeps input order for equal date+time (stable)", () => {
+    const result = normalizeItinerary(
+      [
+        { time: "14:00", placeName: "해운대" },
+        { time: "14:00", placeName: "청사포" },
+      ],
+      D,
+    );
     expect(result.map((i) => i.placeName)).toEqual(["해운대", "청사포"]);
   });
 
-  it("trims place names", () => {
-    expect(normalizeItinerary([{ time: "09:00", placeName: " 감천 " }])[0]).toEqual(
-      { order: 1, time: "09:00", placeName: "감천" },
+  it("sorts multi-day items by (date, time), not time alone", () => {
+    const result = normalizeItinerary(
+      [
+        { date: "2026-09-11", time: "09:00", placeName: "day2 아침" },
+        { date: "2026-09-10", time: "18:00", placeName: "day1 저녁" },
+      ],
+      D,
     );
+    expect(result.map((i) => i.placeName)).toEqual(["day1 저녁", "day2 아침"]);
+  });
+
+  it("respects an explicit fixed scheduleType and trims names", () => {
+    const r = normalizeItinerary(
+      [{ time: "09:00", placeName: " 김해공항 ", scheduleType: "fixed" }],
+      D,
+    );
+    expect(r[0]).toMatchObject({ placeName: "김해공항", scheduleType: "fixed", date: D });
   });
 });
 

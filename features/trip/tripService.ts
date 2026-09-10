@@ -45,7 +45,7 @@ export async function createTrip(draft: TripDraft): Promise<string> {
   if (errors.length > 0) throw new TripValidationError(errors);
 
   const db = requireDb();
-  const itinerary = normalizeItinerary(draft.itinerary);
+  const itinerary = normalizeItinerary(draft.itinerary, draft.startDate);
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const tripId = generateTripId();
@@ -73,29 +73,57 @@ export async function getTrip(tripId: string): Promise<Trip | null> {
   if (!snap.exists()) return null;
 
   const data = snap.data();
+  const startDate = typeof data.startDate === "string" ? data.startDate : "";
   return {
     tripId,
     title: typeof data.title === "string" ? data.title : "",
     destination: typeof data.destination === "string" ? data.destination : "",
-    startDate: typeof data.startDate === "string" ? data.startDate : "",
+    startDate,
     endDate: typeof data.endDate === "string" ? data.endDate : "",
-    itinerary: coerceItinerary(data.itinerary),
+    itinerary: coerceItinerary(data.itinerary, startDate),
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
     status: data.status === "completed" ? "completed" : "active",
   };
 }
 
-/** Tolerates legacy / malformed documents: missing itinerary -> []. */
-function coerceItinerary(value: unknown): ItineraryItem[] {
+/**
+ * Tolerates legacy / malformed documents. Phase 1/2 items were just
+ * `{ order, time, placeName }` — fill the Phase-3-B fields with safe defaults
+ * (`date` ← trip.startDate, `scheduleType` "flexible", `status` "planned",
+ * place fields null). Missing itinerary -> [].
+ */
+export function coerceItinerary(
+  value: unknown,
+  tripStartDate: string,
+): ItineraryItem[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter(
-      (it): it is ItineraryItem =>
+      (it): it is Record<string, unknown> =>
         typeof it === "object" &&
         it !== null &&
-        typeof (it as ItineraryItem).time === "string" &&
-        typeof (it as ItineraryItem).placeName === "string" &&
-        typeof (it as ItineraryItem).order === "number",
+        typeof (it as { time?: unknown }).time === "string" &&
+        typeof (it as { placeName?: unknown }).placeName === "string" &&
+        typeof (it as { order?: unknown }).order === "number",
     )
-    .sort((a, b) => a.order - b.order);
+    .map(
+      (it): ItineraryItem => ({
+        order: it.order as number,
+        date:
+          typeof it.date === "string" && it.date
+            ? (it.date as string)
+            : tripStartDate,
+        time: it.time as string,
+        placeId: typeof it.placeId === "string" ? (it.placeId as string) : null,
+        placeName: it.placeName as string,
+        latitude: typeof it.latitude === "number" ? (it.latitude as number) : null,
+        longitude:
+          typeof it.longitude === "number" ? (it.longitude as number) : null,
+        scheduleType: it.scheduleType === "fixed" ? "fixed" : "flexible",
+        status: it.status === "completed" ? "completed" : "planned",
+      }),
+    )
+    .sort((a, b) =>
+      `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`) || a.order - b.order,
+    );
 }
