@@ -1,13 +1,26 @@
-import { countParticipants } from "@/features/participant/participantService";
+import {
+  countParticipants,
+  listParticipants,
+} from "@/features/participant/participantService";
 
-/** GET /api/trip/{tripId}/participants — participant count (public, no secret). */
+/**
+ * GET /api/trip/{tripId}/participants — nicknames + count of everyone who
+ * joined. Public (no secret). Preferences are NEVER returned here.
+ */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ tripId: string }> },
 ) {
   const { tripId } = await params;
   try {
-    return Response.json({ count: await countParticipants(tripId) });
+    const [count, participants] = await Promise.all([
+      countParticipants(tripId),
+      listParticipants(tripId),
+    ]);
+    return Response.json({
+      count,
+      participants: participants.map((p) => ({ nickname: p.nickname })),
+    });
   } catch (err) {
     console.error(
       "[api/trip/participants]",

@@ -23,7 +23,12 @@ import type {
   TravelPace,
 } from "@/types";
 
-import { PREFERENCE_KEYS, validateJoinInput, type JoinInput } from "./participant";
+import {
+  PREFERENCE_KEYS,
+  PREFERENCE_NEUTRAL,
+  validateJoinInput,
+  type JoinInput,
+} from "./participant";
 
 export class ParticipantValidationError extends Error {
   readonly errors: string[];
@@ -99,7 +104,10 @@ const toMillis = (ts: unknown): number =>
 function cleanVector(raw: Partial<JoinInput>): PreferenceVector {
   const src = (raw.preferences ?? {}) as Record<string, number>;
   return Object.fromEntries(
-    PREFERENCE_KEYS.map((k) => [k, src[k]]),
+    PREFERENCE_KEYS.map((k) => [
+      k,
+      typeof src[k] === "number" ? src[k] : PREFERENCE_NEUTRAL,
+    ]),
   ) as PreferenceVector;
 }
 
@@ -207,6 +215,29 @@ export async function countParticipants(tripId: string): Promise<number> {
   return agg.data().count;
 }
 
+export interface ParticipantSummary {
+  participantId: string;
+  nickname: string;
+}
+
+/**
+ * Nicknames of everyone who joined a trip — NO preferences, NO secret. Used for
+ * the "함께 여행하는 사람" list on the trip page.
+ */
+export async function listParticipants(
+  tripId: string,
+): Promise<ParticipantSummary[]> {
+  const db = requireDb();
+  const snap = await db
+    .collection(`trips/${tripId}/participants`)
+    .orderBy("createdAt", "asc")
+    .get();
+  return snap.docs.map((doc) => ({
+    participantId: String(doc.get("participantId") ?? doc.id),
+    nickname: String(doc.get("nickname") ?? ""),
+  }));
+}
+
 function toParticipantDTO(d: DocumentData): ParticipantDTO {
   return {
     participantId: String(d.participantId ?? ""),
@@ -220,7 +251,10 @@ function toParticipantDTO(d: DocumentData): ParticipantDTO {
 function toPreferenceDTO(d: DocumentData): PreferenceDTO {
   const raw = (d.preferences ?? {}) as Record<string, number>;
   const preferences = Object.fromEntries(
-    PREFERENCE_KEYS.map((k) => [k, Number(raw[k]) || 0]),
+    PREFERENCE_KEYS.map((k) => [
+      k,
+      Number.isFinite(Number(raw[k])) ? Number(raw[k]) : PREFERENCE_NEUTRAL,
+    ]),
   ) as PreferenceVector;
   return {
     preferences,

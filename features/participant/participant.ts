@@ -14,24 +14,34 @@ export const PREFERENCE_KEYS: readonly PreferenceKey[] = [
   "nature",
   "culture",
   "food",
+  "cafe",
   "shopping",
   "activity",
-  "relaxation",
-  "sightseeing",
+  "photo",
+  "relax",
 ];
 
 export const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
   nature: "자연",
   culture: "문화",
   food: "맛집",
+  cafe: "카페",
   shopping: "쇼핑",
   activity: "액티비티",
-  relaxation: "휴식",
-  sightseeing: "관광",
+  photo: "사진",
+  relax: "휴식",
 };
 
 export const PREFERENCE_MIN = 1;
 export const PREFERENCE_MAX = 5;
+/** 1 = 보통 대비 낮음 … 5 = 매우 중요. `PREFERENCE_MIN`=보통(3). */
+export const PREFERENCE_NEUTRAL = 3;
+/** Short hint text for the two ends + the middle of the scale. */
+export const PREFERENCE_SCALE_HINTS: Record<number, string> = {
+  1: "전혀 중요하지 않음",
+  3: "보통",
+  5: "매우 중요함",
+};
 
 export const PACES: readonly TravelPace[] = ["slow", "normal", "fast"];
 export const PACE_LABELS: Record<TravelPace, string> = {
@@ -53,17 +63,11 @@ export const INDOOR_OUTDOOR_LABELS: Record<IndoorOutdoor, string> = {
 
 export const NICKNAME_MAX = 20;
 
-/** Neutral starting point for the survey sliders. */
+/** Neutral starting point for the survey — every axis at 보통(3). */
 export function defaultPreferenceVector(): PreferenceVector {
-  return {
-    nature: 3,
-    culture: 3,
-    food: 3,
-    shopping: 3,
-    activity: 3,
-    relaxation: 3,
-    sightseeing: 3,
-  };
+  return Object.fromEntries(
+    PREFERENCE_KEYS.map((k) => [k, PREFERENCE_NEUTRAL]),
+  ) as PreferenceVector;
 }
 
 export interface JoinInput {

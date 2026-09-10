@@ -12,6 +12,7 @@ import {
   PREFERENCE_LABELS,
   PREFERENCE_MAX,
   PREFERENCE_MIN,
+  PREFERENCE_SCALE_HINTS,
   defaultPreferenceVector,
   validateJoinInput,
 } from "@/features/participant/participant";
@@ -241,11 +242,15 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
           />
         </label>
 
-        <fieldset className="flex flex-col gap-3">
-          <legend className="text-sm font-medium">여행에서 무엇을 좋아하나요?</legend>
+        <fieldset className="flex flex-col gap-4">
+          <legend className="text-sm font-medium">어떤 여행을 좋아하시나요?</legend>
+          <p className="text-xs text-zinc-500">
+            1 {PREFERENCE_SCALE_HINTS[1]} · 3 {PREFERENCE_SCALE_HINTS[3]} · 5{" "}
+            {PREFERENCE_SCALE_HINTS[5]}
+          </p>
           {PREFERENCE_KEYS.map((key) => (
-            <div key={key} className="flex items-center justify-between gap-3">
-              <span className="w-16 shrink-0 text-sm">{PREFERENCE_LABELS[key]}</span>
+            <div key={key} className="flex flex-col gap-1.5">
+              <span className="text-sm">{PREFERENCE_LABELS[key]}</span>
               <Scale
                 value={prefs[key]}
                 onChange={(v) => setPrefs((p) => ({ ...p, [key as PreferenceKey]: v }))}
@@ -317,9 +322,9 @@ function Scale({
           aria-label={`${label} ${n}점`}
           aria-pressed={value === n}
           onClick={() => onChange(n)}
-          className={`h-9 w-9 rounded-full border text-sm ${
+          className={`min-h-11 flex-1 rounded-lg border text-sm ${
             value === n
-              ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+              ? "border-zinc-900 bg-zinc-900 font-medium text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
               : "border-zinc-300 text-zinc-500 dark:border-zinc-700"
           }`}
         >

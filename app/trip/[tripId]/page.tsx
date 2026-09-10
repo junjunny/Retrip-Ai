@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
-import { InviteLink } from "@/components/trip/InviteLink";
 import { ItineraryPlaces } from "@/components/trip/ItineraryPlaces";
+import { TripParticipants } from "@/components/trip/TripParticipants";
 import { getTrip } from "@/features/trip";
 import type { Trip } from "@/types";
 
@@ -87,23 +87,6 @@ export default function TripDetailPage({
 }
 
 function TripView({ trip }: { trip: Trip }) {
-  const [participantCount, setParticipantCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/trip/${trip.tripId}/participants`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data && typeof data.count === "number") {
-          setParticipantCount(data.count);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [trip.tripId]);
-
   return (
     <article className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
@@ -119,14 +102,8 @@ function TripView({ trip }: { trip: Trip }) {
         <ItineraryPlaces trip={trip} />
       </section>
 
-      <section className="flex flex-col gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-zinc-500">일행 초대하기</h2>
-          <span className="text-sm text-zinc-500">
-            참여자 {participantCount ?? "–"}명
-          </span>
-        </div>
-        <InviteLink tripId={trip.tripId} />
+      <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <TripParticipants tripId={trip.tripId} />
       </section>
 
       <section className="flex flex-col gap-1 border-t border-zinc-200 pt-4 dark:border-zinc-800">

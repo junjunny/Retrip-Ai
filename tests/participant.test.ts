@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PREFERENCE_KEYS,
+  PREFERENCE_LABELS,
+  PREFERENCE_NEUTRAL,
+  PREFERENCE_SCALE_HINTS,
   defaultPreferenceVector,
   validateJoinInput,
   type JoinInput,
@@ -63,5 +67,58 @@ describe("validateJoinInput", () => {
     expect(
       validateJoinInput({ nickname: "준희", pace: "normal", indoorOutdoor: "balanced" }),
     ).not.toEqual([]);
+  });
+});
+
+describe("preference categories (STEP 5)", () => {
+  it("has the 8 categories, in order", () => {
+    expect([...PREFERENCE_KEYS]).toEqual([
+      "nature",
+      "culture",
+      "food",
+      "cafe",
+      "shopping",
+      "activity",
+      "photo",
+      "relax",
+    ]);
+  });
+
+  it("every key has a Korean label", () => {
+    for (const k of PREFERENCE_KEYS) {
+      expect(typeof PREFERENCE_LABELS[k]).toBe("string");
+      expect(PREFERENCE_LABELS[k].length).toBeGreaterThan(0);
+    }
+    expect(PREFERENCE_LABELS.cafe).toBe("카페");
+    expect(PREFERENCE_LABELS.photo).toBe("사진");
+  });
+
+  it("default vector is every axis at the neutral value (보통)", () => {
+    const v = defaultPreferenceVector();
+    expect(Object.keys(v).sort()).toEqual([...PREFERENCE_KEYS].sort());
+    expect(Object.values(v).every((n) => n === PREFERENCE_NEUTRAL)).toBe(true);
+    expect(PREFERENCE_NEUTRAL).toBe(3);
+    expect(PREFERENCE_SCALE_HINTS[3]).toBe("보통");
+  });
+
+  it("validateJoinInput accepts a full 8-axis vector and rejects a missing one", () => {
+    expect(
+      validateJoinInput({
+        nickname: "준희",
+        preferences: defaultPreferenceVector(),
+        pace: "normal",
+        indoorOutdoor: "balanced",
+      }),
+    ).toEqual([]);
+    const missing = { ...defaultPreferenceVector() } as Record<string, number>;
+    delete missing.cafe;
+    expect(
+      validateJoinInput({
+        nickname: "준희",
+        preferences: missing as never,
+        pace: "normal",
+        indoorOutdoor: "balanced",
+      }).some((e) => e.includes("카페")),
+    ).toBe(true);
   });
 });

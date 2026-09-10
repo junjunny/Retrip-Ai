@@ -76,15 +76,20 @@ export interface Participant {
   preferenceStatus: PreferenceStatus;
 }
 
-/** Fixed preference axes — a per-participant integer vector (see PREFERENCE_MIN/MAX). */
+/**
+ * Fixed preference axes — a per-participant integer vector, 1..5
+ * (see PREFERENCE_MIN/MAX; 3 = 보통). STEP 6 aggregates these into a group
+ * Experience Profile — STEP 5 only stores the raw per-participant values.
+ */
 export type PreferenceKey =
   | "nature"
   | "culture"
   | "food"
+  | "cafe"
   | "shopping"
   | "activity"
-  | "relaxation"
-  | "sightseeing";
+  | "photo"
+  | "relax";
 
 export type PreferenceVector = Record<PreferenceKey, number>;
 
