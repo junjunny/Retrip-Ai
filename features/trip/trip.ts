@@ -83,11 +83,60 @@ export function normalizeItinerary(
       time: it.time,
       placeId: null,
       placeName: it.placeName.trim(),
+      address: null,
       latitude: null,
       longitude: null,
       scheduleType: it.scheduleType ?? "flexible",
       status: "planned" as const,
+      placeConfirmed: false,
     }));
+}
+
+/**
+ * Reads a stored itinerary array. Phase 1/2 items were `{ order, time,
+ * placeName }` — fill the newer fields with safe defaults (`date` ←
+ * `tripStartDate`, `scheduleType` "flexible", `status` "planned",
+ * `placeConfirmed` false, place fields null). Missing / non-array -> [].
+ * Pure — no Firestore import.
+ */
+export function coerceItinerary(
+  value: unknown,
+  tripStartDate: string,
+): ItineraryItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (it): it is Record<string, unknown> =>
+        typeof it === "object" &&
+        it !== null &&
+        typeof (it as { time?: unknown }).time === "string" &&
+        typeof (it as { placeName?: unknown }).placeName === "string" &&
+        typeof (it as { order?: unknown }).order === "number",
+    )
+    .map(
+      (it): ItineraryItem => ({
+        order: it.order as number,
+        date:
+          typeof it.date === "string" && it.date
+            ? (it.date as string)
+            : tripStartDate,
+        time: it.time as string,
+        placeId: typeof it.placeId === "string" ? (it.placeId as string) : null,
+        placeName: it.placeName as string,
+        address: typeof it.address === "string" ? (it.address as string) : null,
+        latitude: typeof it.latitude === "number" ? (it.latitude as number) : null,
+        longitude:
+          typeof it.longitude === "number" ? (it.longitude as number) : null,
+        scheduleType: it.scheduleType === "fixed" ? "fixed" : "flexible",
+        status: it.status === "completed" ? "completed" : "planned",
+        placeConfirmed: it.placeConfirmed === true,
+      }),
+    )
+    .sort(
+      (a, b) =>
+        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`) ||
+        a.order - b.order,
+    );
 }
 
 /** An itinerary draft row with a stable React key (used by the create form). */

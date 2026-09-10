@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { coerceItinerary } from "@/features/trip/tripService";
+import { coerceItinerary } from "@/features/trip/trip";
 
 const START = "2026-09-10";
 
@@ -17,10 +17,12 @@ describe("coerceItinerary — backward compatibility", () => {
         time: "14:00",
         placeId: null,
         placeName: "해운대",
+        address: null,
         latitude: null,
         longitude: null,
         scheduleType: "flexible", // ← legacy default
         status: "planned", // ← legacy default
+        placeConfirmed: false, // ← legacy default (user has not confirmed)
       },
     ]);
   });

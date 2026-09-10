@@ -6,9 +6,10 @@
 import { doc, getDoc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 
 import { getFirestoreDb } from "@/lib/firebase/client";
-import type { ItineraryItem, Trip } from "@/types";
+import type { Trip } from "@/types";
 
 import {
+  coerceItinerary,
   generateTripId,
   normalizeItinerary,
   validateTripDraft,
@@ -86,44 +87,3 @@ export async function getTrip(tripId: string): Promise<Trip | null> {
   };
 }
 
-/**
- * Tolerates legacy / malformed documents. Phase 1/2 items were just
- * `{ order, time, placeName }` — fill the Phase-3-B fields with safe defaults
- * (`date` ← trip.startDate, `scheduleType` "flexible", `status` "planned",
- * place fields null). Missing itinerary -> [].
- */
-export function coerceItinerary(
-  value: unknown,
-  tripStartDate: string,
-): ItineraryItem[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter(
-      (it): it is Record<string, unknown> =>
-        typeof it === "object" &&
-        it !== null &&
-        typeof (it as { time?: unknown }).time === "string" &&
-        typeof (it as { placeName?: unknown }).placeName === "string" &&
-        typeof (it as { order?: unknown }).order === "number",
-    )
-    .map(
-      (it): ItineraryItem => ({
-        order: it.order as number,
-        date:
-          typeof it.date === "string" && it.date
-            ? (it.date as string)
-            : tripStartDate,
-        time: it.time as string,
-        placeId: typeof it.placeId === "string" ? (it.placeId as string) : null,
-        placeName: it.placeName as string,
-        latitude: typeof it.latitude === "number" ? (it.latitude as number) : null,
-        longitude:
-          typeof it.longitude === "number" ? (it.longitude as number) : null,
-        scheduleType: it.scheduleType === "fixed" ? "fixed" : "flexible",
-        status: it.status === "completed" ? "completed" : "planned",
-      }),
-    )
-    .sort((a, b) =>
-      `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`) || a.order - b.order,
-    );
-}

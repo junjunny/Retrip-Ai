@@ -6,3 +6,4 @@
  */
 export * from "./trip";
 export * from "./tripService";
+export * from "./itineraryPlace";

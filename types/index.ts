@@ -20,7 +20,8 @@ export type ItineraryItemStatus = "planned" | "completed";
  *
  * Legacy docs (Phase 1/2) only had `{ order, time, placeName }`; on read the
  * service fills `date` (← trip.startDate), `scheduleType` ("flexible"),
- * `status` ("planned"), and the place fields (null) — see `coerceItinerary`.
+ * `status` ("planned"), `placeConfirmed` (false), and the place fields (null)
+ * — see `coerceItinerary`.
  */
 export interface ItineraryItem {
   order: number;
@@ -31,10 +32,14 @@ export interface ItineraryItem {
   /** stable place ref once resolved ("kakao:{id}" | "tour:{contentId}"); null until then. */
   placeId: string | null;
   placeName: string;
+  address: string | null;
   latitude: number | null;
   longitude: number | null;
   scheduleType: ScheduleType;
   status: ItineraryItemStatus;
+  /** the USER confirmed / picked this place — NOT the same as an API's
+   *  `NormalizedPlace.verificationStatus`. Legacy items default to `false`. */
+  placeConfirmed: boolean;
 }
 
 /** A planned trip (Phase 1). One Firestore document under `trips/{tripId}`. */
@@ -117,6 +122,8 @@ export interface PlaceCandidate {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** "kakao:{id}" | "tour:{contentId}" | null — lets the client pick this one. */
+  placeId: string | null;
   /** 0..1 — normalized-name similarity to the query. */
   nameSimilarity: number;
   /** metres from the cross-source reference, or null when coords are missing. */

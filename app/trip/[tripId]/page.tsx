@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
 import { InviteLink } from "@/components/trip/InviteLink";
+import { ItineraryPlaces } from "@/components/trip/ItineraryPlaces";
 import { getTrip } from "@/features/trip";
 import type { Trip } from "@/types";
 
@@ -86,7 +87,6 @@ export default function TripDetailPage({
 }
 
 function TripView({ trip }: { trip: Trip }) {
-  const itinerary = trip.itinerary ?? [];
   const [participantCount, setParticipantCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -116,20 +116,7 @@ function TripView({ trip }: { trip: Trip }) {
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-zinc-500">여행 일정</h2>
-        {itinerary.length === 0 ? (
-          <p className="text-sm text-zinc-500">등록된 일정이 없습니다.</p>
-        ) : (
-          <ol className="flex flex-col gap-1.5">
-            {itinerary.map((item) => (
-              <li key={item.order} className="flex gap-3 text-sm">
-                <span className="w-14 shrink-0 tabular-nums text-zinc-500">
-                  {item.time}
-                </span>
-                <span>{item.placeName}</span>
-              </li>
-            ))}
-          </ol>
-        )}
+        <ItineraryPlaces trip={trip} />
       </section>
 
       <section className="flex flex-col gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">

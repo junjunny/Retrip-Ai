@@ -277,6 +277,12 @@ export function matchPlace(
   };
 }
 
+function candidatePlaceId(s: Scored): string | null {
+  if (s.kakao?.id) return `kakao:${s.kakao.id}`;
+  if (s.tour?.id) return `tour:${s.tour.id}`;
+  return null;
+}
+
 function toCandidates(scored: Scored[], chosen: Scored | null): PlaceCandidate[] {
   return scored
     .filter((s) => s !== chosen)
@@ -287,6 +293,7 @@ function toCandidates(scored: Scored[], chosen: Scored | null): PlaceCandidate[]
       address: s.address,
       latitude: s.latitude,
       longitude: s.longitude,
+      placeId: candidatePlaceId(s),
       nameSimilarity: Math.round(s.nameSim * 100) / 100,
       distanceMeters:
         chosen?.latitude != null && s.latitude != null
