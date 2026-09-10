@@ -1,8 +1,8 @@
 /**
- * features/experience — Re:Trip domain logic (PHASE 0 placeholder).
+ * features/experience — group Experience Profile (STEP 6).
  *
- * Business logic for the "experience" domain lives here, decoupled from UI and from
- * other features. Engines (Travel State, Re:Plan) will be written as pure,
- * testable functions: input -> calculation -> output. Nothing implemented yet.
+ * `buildExperienceProfile` is pure and browser-safe. The server-only
+ * `getTripExperienceProfile` (Firestore read) lives in `./experienceService`
+ * and must be imported from there directly, never re-exported here.
  */
-export {};
+export { buildExperienceProfile } from "./experienceProfile";

@@ -7,7 +7,10 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { defaultPreferenceVector } from "@/features/participant/participant";
+import {
+  PREFERENCE_NEUTRAL,
+  defaultPreferenceVector,
+} from "@/features/participant/participant";
 import {
   countParticipants,
   getParticipantSelf,
@@ -105,7 +108,7 @@ d("submitParticipant / getParticipantSelf", () => {
   it("rejects an invalid submit before any write", async () => {
     const before = await countParticipants(tripId);
     await expect(
-      submitParticipant(tripId, validInput({ preferences: { ...defaultPreferenceVector(), food: 9 } })),
+      submitParticipant(tripId, validInput({ preferences: { ...defaultPreferenceVector(), food: 12 } })),
     ).rejects.toBeInstanceOf(ParticipantValidationError);
     expect(await countParticipants(tripId)).toBe(before);
   });
@@ -148,7 +151,7 @@ d("submitParticipant / getParticipantSelf", () => {
       const selfC = await getParticipantSelf(t, c.participantId, c.secret);
       expect(selfA?.preferences?.preferences.nature).toBe(5);
       expect(selfC?.preferences?.preferences.shopping).toBe(5);
-      expect(selfA?.preferences?.preferences.shopping).toBe(3);
+      expect(selfA?.preferences?.preferences.shopping).toBe(PREFERENCE_NEUTRAL);
     } finally {
       await db.recursiveDelete(db.doc(`trips/${t}`));
     }

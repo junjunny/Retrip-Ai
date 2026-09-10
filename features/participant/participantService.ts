@@ -24,8 +24,7 @@ import type {
 } from "@/types";
 
 import {
-  PREFERENCE_KEYS,
-  PREFERENCE_NEUTRAL,
+  coercePreferenceVector,
   validateJoinInput,
   type JoinInput,
 } from "./participant";
@@ -101,15 +100,8 @@ const toMillis = (ts: unknown): number =>
     ? (ts as { toMillis: () => number }).toMillis()
     : Date.now();
 
-function cleanVector(raw: Partial<JoinInput>): PreferenceVector {
-  const src = (raw.preferences ?? {}) as Record<string, number>;
-  return Object.fromEntries(
-    PREFERENCE_KEYS.map((k) => [
-      k,
-      typeof src[k] === "number" ? src[k] : PREFERENCE_NEUTRAL,
-    ]),
-  ) as PreferenceVector;
-}
+const cleanVector = (raw: Partial<JoinInput>): PreferenceVector =>
+  coercePreferenceVector(raw.preferences);
 
 /**
  * Creates a participant + preference document on first submit, or updates them
@@ -238,6 +230,19 @@ export async function listParticipants(
   }));
 }
 
+/**
+ * Every participant's raw preference vector for a trip — normalized, no
+ * nickname/secret. Order is irrelevant (STEP 6 aggregation is commutative).
+ * Feeds `buildExperienceProfile` in features/experience.
+ */
+export async function listPreferenceVectors(
+  tripId: string,
+): Promise<PreferenceVector[]> {
+  const db = requireDb();
+  const snap = await db.collection(`trips/${tripId}/preferences`).get();
+  return snap.docs.map((doc) => coercePreferenceVector(doc.get("preferences")));
+}
+
 function toParticipantDTO(d: DocumentData): ParticipantDTO {
   return {
     participantId: String(d.participantId ?? ""),
@@ -249,15 +254,8 @@ function toParticipantDTO(d: DocumentData): ParticipantDTO {
 }
 
 function toPreferenceDTO(d: DocumentData): PreferenceDTO {
-  const raw = (d.preferences ?? {}) as Record<string, number>;
-  const preferences = Object.fromEntries(
-    PREFERENCE_KEYS.map((k) => [
-      k,
-      Number.isFinite(Number(raw[k])) ? Number(raw[k]) : PREFERENCE_NEUTRAL,
-    ]),
-  ) as PreferenceVector;
   return {
-    preferences,
+    preferences: coercePreferenceVector(d.preferences),
     pace: (["slow", "normal", "fast"] as const).includes(d.pace) ? d.pace : "normal",
     indoorOutdoor: (["indoor", "outdoor", "balanced"] as const).includes(
       d.indoorOutdoor,

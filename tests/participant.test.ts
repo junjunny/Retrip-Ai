@@ -42,16 +42,20 @@ describe("validateJoinInput", () => {
     expect(errors.some((e) => e.includes("맛집"))).toBe(true);
   });
 
-  it("rejects out-of-range and non-integer preference values", () => {
+  it("rejects out-of-range and non-integer preference values (1~10 scale)", () => {
     expect(
       validateJoinInput(base({ preferences: { ...defaultPreferenceVector(), nature: 0 } })),
-    ).toContain('"자연" 선호도는 1~5 사이 값이어야 합니다.');
+    ).toContain('"자연" 선호도는 1~10 사이 값이어야 합니다.');
     expect(
-      validateJoinInput(base({ preferences: { ...defaultPreferenceVector(), nature: 6 } })),
-    ).toContain('"자연" 선호도는 1~5 사이 값이어야 합니다.');
+      validateJoinInput(base({ preferences: { ...defaultPreferenceVector(), nature: 11 } })),
+    ).toContain('"자연" 선호도는 1~10 사이 값이어야 합니다.');
     expect(
-      validateJoinInput(base({ preferences: { ...defaultPreferenceVector(), nature: 3.5 } })),
-    ).toContain('"자연" 선호도는 1~5 사이 값이어야 합니다.');
+      validateJoinInput(base({ preferences: { ...defaultPreferenceVector(), nature: 7.5 } })),
+    ).toContain('"자연" 선호도는 1~10 사이 값이어야 합니다.');
+    // 6..10 are now valid
+    expect(
+      validateJoinInput(base({ preferences: { ...defaultPreferenceVector(), nature: 8 } })),
+    ).toEqual([]);
   });
 
   it("rejects an invalid pace / indoorOutdoor", () => {
@@ -93,12 +97,14 @@ describe("preference categories (STEP 5)", () => {
     expect(PREFERENCE_LABELS.photo).toBe("사진");
   });
 
-  it("default vector is every axis at the neutral value (보통)", () => {
+  it("default vector is every axis at the neutral value (보통) on the 1~10 scale", () => {
     const v = defaultPreferenceVector();
     expect(Object.keys(v).sort()).toEqual([...PREFERENCE_KEYS].sort());
     expect(Object.values(v).every((n) => n === PREFERENCE_NEUTRAL)).toBe(true);
-    expect(PREFERENCE_NEUTRAL).toBe(3);
-    expect(PREFERENCE_SCALE_HINTS[3]).toBe("보통");
+    expect(PREFERENCE_NEUTRAL).toBe(5);
+    expect(PREFERENCE_SCALE_HINTS[1]).toBe("전혀 중요하지 않음");
+    expect(PREFERENCE_SCALE_HINTS[5]).toBe("보통");
+    expect(PREFERENCE_SCALE_HINTS[10]).toBe("매우 중요함");
   });
 
   it("validateJoinInput accepts a full 8-axis vector and rejects a missing one", () => {

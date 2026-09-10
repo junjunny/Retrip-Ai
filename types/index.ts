@@ -77,8 +77,8 @@ export interface Participant {
 }
 
 /**
- * Fixed preference axes — a per-participant integer vector, 1..5
- * (see PREFERENCE_MIN/MAX; 3 = 보통). STEP 6 aggregates these into a group
+ * Fixed preference axes — a per-participant integer vector, 1..10
+ * (see PREFERENCE_MIN/MAX; 5 = 보통). STEP 6 aggregates these into a group
  * Experience Profile — STEP 5 only stores the raw per-participant values.
  */
 export type PreferenceKey =
@@ -163,10 +163,20 @@ export interface NormalizedPlace {
   candidates: PlaceCandidate[];
 }
 
-/** The group's aggregated intended experience (Phase 4). */
-export interface ExperienceProfile {
-  tripId: string;
-}
+/**
+ * The group's aggregated preference (STEP 6) — the equal-weight mean of every
+ * participant's `PreferenceVector`. Same 8 axes and 1..10 scale, but values may
+ * be fractional (rounded to 2 dp). Derived deterministically from the stored
+ * preferences via `buildExperienceProfile`; NOT persisted.
+ *
+ * This is an intermediate representation, not a recommendation: it carries no
+ * place, priority, "travel style", or conflict/variance information. Those
+ * belong to later steps (STEP 8 candidates, STEP 9 scoring).
+ *
+ * `buildExperienceProfile` returns `null` (not a fabricated vector) when no
+ * participant has submitted preferences yet.
+ */
+export type ExperienceProfile = Record<PreferenceKey, number>;
 
 /**
  * Unified snapshot of the current trip conditions — weather, traffic, crowd,

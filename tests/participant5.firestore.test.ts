@@ -75,7 +75,7 @@ d("group participants", () => {
     expect(self!.preferences!.preferences.nature).toBe(1);
   });
 
-  it("a legacy preference doc missing cafe/photo reads back as 3 (neutral)", async () => {
+  it("a legacy preference doc missing cafe/photo reads back as neutral (5)", async () => {
     const db = getAdminDb()!;
     const r = await submitParticipant(tripId, input("레거시"));
     // simulate an old doc that only had 6 axes
@@ -84,8 +84,8 @@ d("group participants", () => {
       { merge: true },
     );
     const self = await getParticipantSelf(tripId, r.participantId, r.secret);
-    expect(self!.preferences!.preferences.cafe).toBe(3);
-    expect(self!.preferences!.preferences.photo).toBe(3);
+    expect(self!.preferences!.preferences.cafe).toBe(5);
+    expect(self!.preferences!.preferences.photo).toBe(5);
     expect(self!.preferences!.preferences.nature).toBe(5);
   });
 });

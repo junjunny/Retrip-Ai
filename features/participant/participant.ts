@@ -33,14 +33,14 @@ export const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
 };
 
 export const PREFERENCE_MIN = 1;
-export const PREFERENCE_MAX = 5;
-/** 1 = 보통 대비 낮음 … 5 = 매우 중요. `PREFERENCE_MIN`=보통(3). */
-export const PREFERENCE_NEUTRAL = 3;
+export const PREFERENCE_MAX = 10;
+/** 1 = 전혀 중요하지 않음 … 10 = 매우 중요함. 5 = 보통 (survey default). */
+export const PREFERENCE_NEUTRAL = 5;
 /** Short hint text for the two ends + the middle of the scale. */
 export const PREFERENCE_SCALE_HINTS: Record<number, string> = {
   1: "전혀 중요하지 않음",
-  3: "보통",
-  5: "매우 중요함",
+  5: "보통",
+  10: "매우 중요함",
 };
 
 export const PACES: readonly TravelPace[] = ["slow", "normal", "fast"];
@@ -63,10 +63,30 @@ export const INDOOR_OUTDOOR_LABELS: Record<IndoorOutdoor, string> = {
 
 export const NICKNAME_MAX = 20;
 
-/** Neutral starting point for the survey — every axis at 보통(3). */
+/** Neutral starting point for the survey — every axis at 보통(5). */
 export function defaultPreferenceVector(): PreferenceVector {
   return Object.fromEntries(
     PREFERENCE_KEYS.map((k) => [k, PREFERENCE_NEUTRAL]),
+  ) as PreferenceVector;
+}
+
+/**
+ * Normalize an untrusted preference map to a full 8-axis vector: missing /
+ * non-finite axes become `PREFERENCE_NEUTRAL`, out-of-range values are clamped
+ * to `[PREFERENCE_MIN, PREFERENCE_MAX]`. Pure. Used on every read boundary
+ * (stored docs, Experience Profile input) so a bad value can't break a
+ * downstream calculation — it does NOT make a bad submit pass validation.
+ */
+export function coercePreferenceVector(
+  src: Partial<Record<PreferenceKey, unknown>> | null | undefined,
+): PreferenceVector {
+  const s = src ?? {};
+  return Object.fromEntries(
+    PREFERENCE_KEYS.map((k) => {
+      const n = Number(s[k]);
+      if (!Number.isFinite(n)) return [k, PREFERENCE_NEUTRAL];
+      return [k, Math.min(PREFERENCE_MAX, Math.max(PREFERENCE_MIN, n))];
+    }),
   ) as PreferenceVector;
 }
 
