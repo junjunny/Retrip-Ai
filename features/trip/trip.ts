@@ -9,6 +9,27 @@ import type { ItineraryItem, ScheduleType } from "@/types";
 
 /** "HH:mm", 24-hour, leading zeros required (09:00 ok, 9:0 not). */
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** "YYYY-MM-DD" (loose — real calendar validity checked separately). */
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Every "YYYY-MM-DD" from `startDate` to `endDate` inclusive. `[]` when either
+ * is missing / malformed / out of order. No timezone math — pure string dates.
+ */
+export function tripDates(startDate: string, endDate: string): string[] {
+  if (!DATE_RE.test(startDate) || !DATE_RE.test(endDate)) return [];
+  if (startDate > endDate) return [];
+  const out: string[] = [];
+  const cur = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(cur.getTime()) || Number.isNaN(end.getTime())) return [];
+  // guard against a pathological range
+  for (let i = 0; i < 366 && cur <= end; i++) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
 
 /** Raw itinerary row as typed by the user, before normalization. */
 export interface ItineraryDraft {
@@ -44,9 +65,7 @@ export function validateTripDraft(draft: TripDraft): string[] {
     errors.push("여행 종료일은 시작일보다 빠를 수 없습니다.");
   }
 
-  if (draft.itinerary.length === 0) {
-    errors.push("최소 1개의 일정을 입력해주세요.");
-  }
+  // An empty itinerary is allowed (trip basics only). Any item present is checked.
   if (draft.itinerary.some((it) => !it.time)) {
     errors.push("일정의 시간을 입력해주세요.");
   } else if (draft.itinerary.some((it) => !TIME_RE.test(it.time))) {
@@ -54,6 +73,11 @@ export function validateTripDraft(draft: TripDraft): string[] {
   }
   if (draft.itinerary.some((it) => !it.placeName.trim())) {
     errors.push("일정의 장소명을 입력해주세요.");
+  }
+
+  const days = tripDates(draft.startDate, draft.endDate);
+  if (days.length > 0 && draft.itinerary.some((it) => it.date && !days.includes(it.date))) {
+    errors.push("여행 기간에 없는 날짜의 일정이 있습니다.");
   }
 
   return errors;
@@ -137,6 +161,72 @@ export function coerceItinerary(
         `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`) ||
         a.order - b.order,
     );
+}
+
+/** Re-sort by (date, time) and re-assign `order` from 1 (whole-trip order). Pure. */
+export function renumberItinerary(items: ItineraryItem[]): ItineraryItem[] {
+  return items
+    .map((it, index) => ({ it, index }))
+    .sort((a, b) => {
+      const ka = `${a.it.date} ${a.it.time}`;
+      const kb = `${b.it.date} ${b.it.time}`;
+      if (ka < kb) return -1;
+      if (ka > kb) return 1;
+      return a.index - b.index;
+    })
+    .map(({ it }, i) => ({ ...it, order: i + 1 }));
+}
+
+/** Fields a user may edit on an existing itinerary item (NOT the place fields). */
+export interface ItineraryEdit {
+  date?: string;
+  time?: string;
+  placeName?: string;
+  scheduleType?: ScheduleType;
+}
+
+/**
+ * Apply a schedule edit to the item with `order`, then renumber.
+ * If `placeName` changes, the resolved-place fields are cleared and
+ * `placeConfirmed` goes back to `false` — the place must be confirmed again.
+ * `status` is never touched here. Pure.
+ */
+export function applyItineraryEdit(
+  items: ItineraryItem[],
+  order: number,
+  edit: ItineraryEdit,
+): ItineraryItem[] {
+  const patched = items.map((it) => {
+    if (it.order !== order) return it;
+    const nextName =
+      edit.placeName !== undefined ? edit.placeName.trim() : it.placeName;
+    const nameChanged = nextName !== it.placeName;
+    return {
+      ...it,
+      date: edit.date ?? it.date,
+      time: edit.time ?? it.time,
+      scheduleType: edit.scheduleType ?? it.scheduleType,
+      placeName: nextName || it.placeName,
+      ...(nameChanged
+        ? {
+            placeId: null,
+            address: null,
+            latitude: null,
+            longitude: null,
+            placeConfirmed: false,
+          }
+        : {}),
+    };
+  });
+  return renumberItinerary(patched);
+}
+
+/** Remove the item with `order`, then renumber. Pure. */
+export function removeItineraryItem(
+  items: ItineraryItem[],
+  order: number,
+): ItineraryItem[] {
+  return renumberItinerary(items.filter((it) => it.order !== order));
 }
 
 /** An itinerary draft row with a stable React key (used by the create form). */

@@ -17,7 +17,7 @@ service cloud.firestore {
         && d.destination is string && d.destination.size() > 0
         && d.startDate is string && d.endDate is string
         && d.startDate <= d.endDate
-        && d.itinerary is list && d.itinerary.size() > 0
+        && d.itinerary is list
         && d.status == 'active'
         && d.createdAt == request.time;
     }

@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyItineraryEdit,
   applyRowPatch,
   dropRow,
   generateTripId,
   normalizeItinerary,
+  removeItineraryItem,
+  renumberItinerary,
+  tripDates,
   validateTripDraft,
   type TripDraft,
 } from "@/features/trip/trip";
+import type { ItineraryItem } from "@/types";
 
 const baseDraft = (over: Partial<TripDraft> = {}): TripDraft => ({
   title: "부산 바다 여행",
@@ -40,10 +45,34 @@ describe("validateTripDraft", () => {
     expect(errors).toContain("여행 종료일은 시작일보다 빠를 수 없습니다.");
   });
 
-  it("flags an empty itinerary", () => {
-    expect(validateTripDraft(baseDraft({ itinerary: [] }))).toContain(
-      "최소 1개의 일정을 입력해주세요.",
+  it("allows an empty itinerary (trip basics only)", () => {
+    expect(validateTripDraft(baseDraft({ itinerary: [] }))).toEqual([]);
+  });
+
+  it("rejects an itinerary date outside the trip range", () => {
+    const errors = validateTripDraft(
+      baseDraft({
+        startDate: "2026-09-18",
+        endDate: "2026-09-20",
+        itinerary: [{ time: "10:00", placeName: "x", date: "2026-09-21" }],
+      }),
     );
+    expect(errors).toContain("여행 기간에 없는 날짜의 일정이 있습니다.");
+  });
+
+  it("accepts itinerary dates within the range", () => {
+    expect(
+      validateTripDraft(
+        baseDraft({
+          startDate: "2026-09-18",
+          endDate: "2026-09-20",
+          itinerary: [
+            { time: "10:00", placeName: "a", date: "2026-09-18" },
+            { time: "10:00", placeName: "b", date: "2026-09-20" },
+          ],
+        }),
+      ),
+    ).toEqual([]);
   });
 
   it("flags a missing or malformed time", () => {
@@ -150,6 +179,117 @@ describe("itinerary row editing", () => {
   it("dropRow never removes the last remaining row", () => {
     const one = [{ key: "a", time: "14:00", placeName: "해운대" }];
     expect(dropRow(one, "a")).toEqual(one);
+  });
+});
+
+describe("tripDates", () => {
+  it("lists every day inclusive", () => {
+    expect(tripDates("2026-09-18", "2026-09-20")).toEqual([
+      "2026-09-18",
+      "2026-09-19",
+      "2026-09-20",
+    ]);
+  });
+  it("single day", () => {
+    expect(tripDates("2026-09-18", "2026-09-18")).toEqual(["2026-09-18"]);
+  });
+  it("[] for end < start or malformed", () => {
+    expect(tripDates("2026-09-20", "2026-09-18")).toEqual([]);
+    expect(tripDates("", "2026-09-18")).toEqual([]);
+    expect(tripDates("2026/09/18", "2026-09-20")).toEqual([]);
+  });
+});
+
+const mkItem = (over: Partial<ItineraryItem>): ItineraryItem => ({
+  order: 1,
+  date: "2026-09-18",
+  time: "10:00",
+  placeId: null,
+  placeName: "장소",
+  address: null,
+  latitude: null,
+  longitude: null,
+  scheduleType: "flexible",
+  status: "planned",
+  placeConfirmed: false,
+  ...over,
+});
+
+describe("renumberItinerary / applyItineraryEdit / removeItineraryItem", () => {
+  it("renumbers by (date, time)", () => {
+    const out = renumberItinerary([
+      mkItem({ order: 1, date: "2026-09-19", time: "09:00", placeName: "day2" }),
+      mkItem({ order: 2, date: "2026-09-18", time: "18:00", placeName: "day1저녁" }),
+      mkItem({ order: 3, date: "2026-09-18", time: "10:00", placeName: "day1아침" }),
+    ]);
+    expect(out.map((i) => [i.order, i.placeName])).toEqual([
+      [1, "day1아침"],
+      [2, "day1저녁"],
+      [3, "day2"],
+    ]);
+  });
+
+  it("edit: time change re-sorts + renumbers, place fields untouched", () => {
+    const items = [
+      mkItem({ order: 1, time: "10:00", placeName: "A", placeId: "kakao:1", latitude: 35, longitude: 129, placeConfirmed: true }),
+      mkItem({ order: 2, time: "12:00", placeName: "B" }),
+    ];
+    const out = applyItineraryEdit(items, 1, { time: "13:00" });
+    expect(out.map((i) => [i.order, i.placeName, i.time])).toEqual([
+      [1, "B", "12:00"],
+      [2, "A", "13:00"],
+    ]);
+    const a = out.find((i) => i.placeName === "A")!;
+    expect(a).toMatchObject({ placeId: "kakao:1", latitude: 35, placeConfirmed: true });
+  });
+
+  it("edit: placeName change clears placeId/address/coords + placeConfirmed", () => {
+    const items = [
+      mkItem({
+        order: 1,
+        placeName: "해운대해수욕장",
+        placeId: "kakao:7913306",
+        address: "부산 해운대구",
+        latitude: 35.15,
+        longitude: 129.16,
+        placeConfirmed: true,
+      }),
+    ];
+    const [out] = applyItineraryEdit(items, 1, { placeName: "광안리해수욕장" });
+    expect(out).toMatchObject({
+      placeName: "광안리해수욕장",
+      placeId: null,
+      address: null,
+      latitude: null,
+      longitude: null,
+      placeConfirmed: false,
+    });
+  });
+
+  it("edit: scheduleType/date change does NOT reset a confirmed place", () => {
+    const items = [
+      mkItem({ order: 1, placeName: "A", placeId: "kakao:1", latitude: 35, longitude: 129, placeConfirmed: true }),
+    ];
+    const [out] = applyItineraryEdit(items, 1, { scheduleType: "fixed", date: "2026-09-19" });
+    expect(out).toMatchObject({ scheduleType: "fixed", date: "2026-09-19", placeConfirmed: true, placeId: "kakao:1" });
+  });
+
+  it("edit: never touches status", () => {
+    const items = [mkItem({ order: 1, status: "completed" })];
+    expect(applyItineraryEdit(items, 1, { time: "11:00" })[0].status).toBe("completed");
+  });
+
+  it("delete: removes the item and renumbers", () => {
+    const items = [
+      mkItem({ order: 1, time: "10:00", placeName: "A" }),
+      mkItem({ order: 2, time: "12:00", placeName: "B" }),
+      mkItem({ order: 3, time: "14:00", placeName: "C" }),
+    ];
+    const out = removeItineraryItem(items, 2);
+    expect(out.map((i) => [i.order, i.placeName])).toEqual([
+      [1, "A"],
+      [2, "C"],
+    ]);
   });
 });
 

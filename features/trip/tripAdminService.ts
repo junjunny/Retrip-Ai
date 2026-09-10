@@ -11,7 +11,12 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import type { ItineraryItem } from "@/types";
 
 import { applyPlaceChoice, type PlaceChoice } from "./itineraryPlace";
-import { coerceItinerary } from "./trip";
+import {
+  applyItineraryEdit,
+  coerceItinerary,
+  removeItineraryItem,
+  type ItineraryEdit,
+} from "./trip";
 
 export class TripNotFoundError extends Error {
   constructor() {
@@ -57,6 +62,47 @@ export async function updateItineraryPlace(
   }
 
   const next = applyPlaceChoice(items, order, choice);
+  await ref.update({ itinerary: next });
+  return next;
+}
+
+async function loadItems(tripId: string) {
+  const ref = requireDb().doc(`trips/${tripId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new TripNotFoundError();
+  const data = snap.data() ?? {};
+  const startDate = typeof data.startDate === "string" ? data.startDate : "";
+  return { ref, items: coerceItinerary(data.itinerary, startDate) };
+}
+
+/**
+ * Edits an item's schedule fields (date / time / placeName / scheduleType) and
+ * renumbers. A placeName change resets the resolved place (see `applyItineraryEdit`).
+ */
+export async function editItineraryItem(
+  tripId: string,
+  order: number,
+  edit: ItineraryEdit,
+): Promise<ItineraryItem[]> {
+  const { ref, items } = await loadItems(tripId);
+  if (!items.some((it) => it.order === order)) {
+    throw new ItineraryItemNotFoundError(order);
+  }
+  const next = applyItineraryEdit(items, order, edit);
+  await ref.update({ itinerary: next });
+  return next;
+}
+
+/** Deletes one item and renumbers the rest. */
+export async function deleteItineraryItem(
+  tripId: string,
+  order: number,
+): Promise<ItineraryItem[]> {
+  const { ref, items } = await loadItems(tripId);
+  if (!items.some((it) => it.order === order)) {
+    throw new ItineraryItemNotFoundError(order);
+  }
+  const next = removeItineraryItem(items, order);
   await ref.update({ itinerary: next });
   return next;
 }
