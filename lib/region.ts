@@ -42,4 +42,23 @@ export function statSidoToKtoArea(statSidoCode: string | number): KrSido | null 
   return SIDO.find((s) => s.statSidoCode === two) ?? null;
 }
 
+const SIDO_SUFFIX = /(특별자치시|특별자치도|특별시|광역시|도)$/;
+
+/**
+ * Loosely matches a free-text trip destination ("부산", "제주도 서귀포") against
+ * the 시도 name table — used when there's no coordinate to search nearby with,
+ * only the trip's destination string (STEP 8 Candidate Generation fallback).
+ * `null` when nothing plausible matches; never guesses.
+ */
+export function destinationToKtoArea(destination: string): KrSido | null {
+  const d = destination.trim();
+  if (!d) return null;
+  return (
+    SIDO.find((s) => {
+      const short = s.name.replace(SIDO_SUFFIX, "");
+      return d.includes(s.name) || d.includes(short) || short.includes(d);
+    }) ?? null
+  );
+}
+
 export const KR_SIDO = SIDO;

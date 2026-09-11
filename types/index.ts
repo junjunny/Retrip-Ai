@@ -229,6 +229,47 @@ export interface TravelState {
   status: TravelStateStatus;
 }
 
+/**
+ * One real, API-confirmed alternative for a FLEXIBLE itinerary slot (STEP 8,
+ * Candidate Generation). Deliberately close to `PlaceCandidate`/`NormalizedPlace`'s
+ * vocabulary (source / verificationStatus / placeId / coordinates), but not the
+ * same shape: those types resolve ONE user-typed place name against a query, this
+ * describes generating a LIST of fresh alternatives — there's no user query to
+ * hold a `nameSimilarity` against, and there IS a real TourAPI `contentTypeId`
+ * worth keeping.
+ *
+ * Every field traces back to a real adapter response (TourAPI / Kakao Local) —
+ * never an invented name or coordinate. `candidateReason` is a short debug note,
+ * NOT a score — see features/candidate. STEP 9 (out of scope here) is what
+ * ranks these.
+ */
+export interface CandidatePlace {
+  placeId: string | null;
+  placeName: string;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  /** TourAPI contentTypeId this came from (see lib/api/tour/tourism.ts), when known. */
+  category: number | null;
+  source: PlaceSource;
+  verificationStatus: PlaceVerificationStatus;
+  candidateReason: string;
+}
+
+/**
+ * Candidate Generation's output for one FLEXIBLE itinerary item (STEP 8).
+ * `keepCurrent` is a system CONTROL VALUE, not a Place object — it is never
+ * mixed into `candidates` — representing "do nothing to this slot", which is
+ * always a valid option since Re:Trip never changes a plan on its own.
+ */
+export interface SlotCandidates {
+  /** the ItineraryItem.order this is for. */
+  itineraryOrder: number;
+  /** always true here — keeping the current place is always an option. Reserved for a future STEP to express when it isn't. */
+  keepCurrent: true;
+  candidates: CandidatePlace[];
+}
+
 /** A candidate re-designed plan produced by the Re:Plan Engine (Phase 8). */
 export interface ReplanPlan {
   tripId: string;
