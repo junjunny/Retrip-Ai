@@ -14,6 +14,15 @@ export interface PlaceChoice {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  /**
+   * Defaults to `true` (a user actively picking/confirming a place IS a
+   * confirmation — STEP 3's original semantics, unchanged for existing
+   * callers). Pass `false` for a place that hasn't been independently
+   * verified (e.g. a Re:Plan candidate whose `verificationStatus` isn't
+   * "verified" — see features/replan) — NEVER force `true` on an unconfirmed
+   * place.
+   */
+  confirmed?: boolean;
 }
 
 /** Build a `PlaceChoice` from a `NormalizedPlace` (the "맞아요" path). */
@@ -56,10 +65,18 @@ export function applyPlaceChoice(
           address: choice.address,
           latitude: choice.latitude,
           longitude: choice.longitude,
-          placeConfirmed: true,
+          placeConfirmed: choice.confirmed ?? true,
         }
       : it,
   );
+}
+
+/** Applies several place choices in one pass (folds `applyPlaceChoice` per order) — for Re:Plan Apply, which may replace multiple FLEXIBLE slots in one write. Pure. */
+export function applyPlaceChoices(
+  items: ItineraryItem[],
+  choices: readonly { order: number; choice: PlaceChoice }[],
+): ItineraryItem[] {
+  return choices.reduce((acc, { order, choice }) => applyPlaceChoice(acc, order, choice), items);
 }
 
 export interface ItineraryMarker {

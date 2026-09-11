@@ -4,9 +4,10 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
 import { ItineraryPlaces } from "@/components/trip/ItineraryPlaces";
+import { ReplanPanel } from "@/components/trip/ReplanPanel";
 import { TripParticipants } from "@/components/trip/TripParticipants";
 import { getTrip } from "@/features/trip";
-import type { Trip } from "@/types";
+import type { ItineraryItem, Trip } from "@/types";
 
 type State =
   | { status: "loading" }
@@ -86,7 +87,16 @@ export default function TripDetailPage({
   );
 }
 
-function TripView({ trip }: { trip: Trip }) {
+function TripView({ trip: initialTrip }: { trip: Trip }) {
+  const [trip, setTrip] = useState(initialTrip);
+  // bump on every Re:Plan apply so ItineraryPlaces remounts with the fresh itinerary as its initial state.
+  const [itineraryVersion, setItineraryVersion] = useState(0);
+
+  const handleReplanApplied = (itinerary: ItineraryItem[]) => {
+    setTrip((t) => ({ ...t, itinerary }));
+    setItineraryVersion((v) => v + 1);
+  };
+
   return (
     <article className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
@@ -99,7 +109,11 @@ function TripView({ trip }: { trip: Trip }) {
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-zinc-500">여행 일정</h2>
-        <ItineraryPlaces trip={trip} />
+        <ItineraryPlaces key={itineraryVersion} trip={trip} />
+      </section>
+
+      <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <ReplanPanel tripId={trip.tripId} onApplied={handleReplanApplied} />
       </section>
 
       <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">

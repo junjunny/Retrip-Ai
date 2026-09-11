@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyPlaceChoice,
+  applyPlaceChoices,
   itineraryMarkers,
   placeChoiceFromCandidate,
   placeChoiceFromNormalized,
@@ -124,5 +125,35 @@ describe("placeChoice builders", () => {
       latitude: 35.153,
       longitude: 129.118,
     });
+  });
+});
+
+describe("applyPlaceChoice — confirmed override (STEP 10)", () => {
+  it("confirmed: false is never forced to true (an unverified Re:Plan candidate stays unconfirmed)", () => {
+    const [out] = applyPlaceChoice([item()], 1, { ...choice, confirmed: false });
+    expect(out.placeConfirmed).toBe(false);
+  });
+
+  it("omitting confirmed keeps the original always-true behavior", () => {
+    const [out] = applyPlaceChoice([item()], 1, choice);
+    expect(out.placeConfirmed).toBe(true);
+  });
+});
+
+describe("applyPlaceChoices", () => {
+  it("applies several choices in one pass, leaving untouched items alone", () => {
+    const items = [item({ order: 1 }), item({ order: 2, placeName: "다른 일정" }), item({ order: 3 })];
+    const out = applyPlaceChoices(items, [
+      { order: 1, choice },
+      { order: 3, choice: { ...choice, placeName: "세 번째 장소" } },
+    ]);
+    expect(out[0].placeName).toBe("해운대해수욕장");
+    expect(out[1].placeName).toBe("다른 일정"); // order 2 untouched
+    expect(out[2].placeName).toBe("세 번째 장소");
+  });
+
+  it("an empty choice list returns the itinerary unchanged", () => {
+    const items = [item()];
+    expect(applyPlaceChoices(items, [])).toEqual(items);
   });
 });

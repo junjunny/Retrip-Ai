@@ -270,7 +270,9 @@ export interface SlotCandidates {
   candidates: CandidatePlace[];
 }
 
-/** A candidate re-designed plan produced by the Re:Plan Engine (Phase 8). */
-export interface ReplanPlan {
-  tripId: string;
-}
+/**
+ * `ReplanPreview` / `ReplanSlotProposal` (STEP 10) live in `features/replan`,
+ * not here — they embed `RankedOption` from `features/scoring`, and `types/`
+ * must not depend on a feature module (features depend on types, never the
+ * reverse). This PHASE-0 stub is superseded; nothing imports it.
+ */
