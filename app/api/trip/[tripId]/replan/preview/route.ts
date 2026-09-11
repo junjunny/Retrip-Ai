@@ -6,10 +6,14 @@
  * page load, or Travel State change (see AGENTS-spec §32). Read-only: never
  * writes the itinerary. `now` always comes from the server clock — a client
  * can never supply it (that would let a client manipulate weather/schedule
- * scoring for a time that isn't real). Returns `{ preview }`; `preview.slots`
- * is `[]` (not an error) when there's nothing eligible to re-plan right now.
+ * scoring for a time that isn't real). Returns `{ preview, explanation }`;
+ * `preview.slots` is `[]` (not an error) when there's nothing eligible to
+ * re-plan right now. `explanation` (STEP 11) is a human-readable summary of
+ * the SAME deterministic `preview` — an LLM failure degrades it to a
+ * deterministic fallback but never fails this request (see
+ * features/replan/explanation).
  */
-import { generateReplanPreview } from "@/features/replan/replanService";
+import { generateReplanPreviewWithExplanation } from "@/features/replan/replanService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 
 function parseCurrentLocation(v: unknown): { latitude: number; longitude: number } | null {
@@ -39,8 +43,8 @@ export async function POST(
   const currentLocation = parseCurrentLocation(body.currentLocation);
 
   try {
-    const preview = await generateReplanPreview(tripId, { currentLocation });
-    return Response.json({ preview });
+    const { preview, explanation } = await generateReplanPreviewWithExplanation(tripId, { currentLocation });
+    return Response.json({ preview, explanation });
   } catch (err) {
     if (err instanceof TripNotFoundError) {
       return Response.json({ error: err.message }, { status: 404 });

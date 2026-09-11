@@ -369,8 +369,8 @@ describe("I. Keep Current", () => {
   it("keepCurrent and real candidates are compared in the same ranking pipeline", () => {
     const keep = itemToCandidateView(item({ placeName: "현재 장소" }));
     const entries: RankedOption[] = [
-      { kind: "candidate", place: place({ placeId: "tour:a" }), breakdown: scoreCandidate(baseInput({ place: place({ placeId: "tour:a" }) })) },
-      { kind: "keepCurrent", place: keep, breakdown: scoreCandidate(baseInput({ place: keep })) },
+      { kind: "candidate", place: place({ placeId: "tour:a" }), breakdown: scoreCandidate(baseInput({ place: place({ placeId: "tour:a" }) })), route: null },
+      { kind: "keepCurrent", place: keep, breakdown: scoreCandidate(baseInput({ place: keep })), route: null },
     ];
     const ranked = rankScored(entries);
     expect(ranked.map((r) => r.kind).sort()).toEqual(["candidate", "keepCurrent"]);
@@ -404,6 +404,7 @@ describe("J. Determinism", () => {
       kind: "candidate",
       place: p,
       breakdown: scoreCandidate(baseInput({ place: p })),
+      route: null,
     }));
     expect(rankScored(entries)).toEqual(rankScored(entries));
   });
@@ -417,6 +418,7 @@ describe("K. Tie-break", () => {
     kind: "candidate",
     place: p,
     breakdown: { ...scoreCandidate(baseInput({ place: p })), travelBurden: burdenOverride ?? null },
+    route: null,
   });
 
   it("equal finalScore -> lower travelBurden wins", () => {
@@ -460,6 +462,7 @@ describe("L. Input Immutability", () => {
       kind: "candidate",
       place: p,
       breakdown: scoreCandidate(baseInput({ place: p })),
+      route: null,
     }));
     const snapshot = JSON.stringify(entries);
     const result = rankScored(entries);

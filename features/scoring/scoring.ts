@@ -477,6 +477,14 @@ export interface RankedOption {
   kind: RankedOptionKind;
   place: CandidatePlace;
   breakdown: ScoreBreakdown;
+  /**
+   * The real Kakao Mobility metrics `breakdown.travelBurden`/`timeFitness`
+   * were computed from (`null` when unavailable) — carried here PURELY as
+   * metadata for STEP 11's explanation layer to cite an honest number
+   * ("약 18분"). This does NOT change how `scoreCandidate` computes anything;
+   * the scoring formula, weights, and thresholds are untouched (see STEP 9).
+   */
+  route: { durationSeconds: number; distanceMeters: number } | null;
 }
 
 /**

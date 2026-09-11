@@ -14,7 +14,7 @@ import "server-only";
 import { generateCandidatesWithContext, type GenerateCandidatesOptions } from "@/features/candidate/candidateService";
 import { listPreferenceVectors } from "@/features/participant/participantService";
 import { fetchDrivingRoute } from "@/lib/api";
-import type { CandidatePlace, ItineraryItem } from "@/types";
+import type { CandidatePlace, ItineraryItem, TravelState } from "@/types";
 
 import { itemToCandidateView, rankScored, scoreCandidate, type RankedOption } from "./scoring";
 
@@ -49,23 +49,33 @@ export interface SlotRanking {
 }
 
 /**
- * Scores every candidate STEP 8 generated for each FLEXIBLE slot, plus that
- * slot's "keep current" option, and returns them ranked. `[]` slots when
- * there's nothing to score (mirrors `generateCandidatesForTrip`). Never
- * writes the itinerary.
+ * `scoreTripCandidates`'s full working context — the ranked slots plus the
+ * STEP 7 Travel State snapshot they were scored against. Exists so a caller
+ * that also needs Travel State (STEP 11's explanation facts — weatherRisk /
+ * trafficBurden) doesn't recompute it a second time (a second Firestore read
+ * + a second real weather/traffic round trip) — NOT a scoring behavior
+ * change; `scoreTripCandidates` below is unchanged and delegates here,
+ * exactly the pattern STEP 9 used for STEP 8's `generateCandidatesWithContext`.
  */
-export async function scoreTripCandidates(
+export interface ScoreTripContext {
+  slotRankings: SlotRanking[];
+  travelState: TravelState;
+}
+
+export async function scoreTripCandidatesWithContext(
   tripId: string,
   options: ScoreTripOptions = {},
-): Promise<SlotRanking[]> {
+): Promise<ScoreTripContext> {
   const currentLocation = options.currentLocation ?? null;
   const context = await generateCandidatesWithContext(tripId, options);
-  if (context.slotCandidates.length === 0) return [];
+  if (context.slotCandidates.length === 0) {
+    return { slotRankings: [], travelState: context.travelState };
+  }
 
   const preferenceVectors = await listPreferenceVectors(tripId);
   const itemByOrder = new Map<number, ItineraryItem>(context.itinerary.map((it) => [it.order, it]));
 
-  return Promise.all(
+  const slotRankings = await Promise.all(
     context.slotCandidates.map(async (sc) => {
       const slot = itemByOrder.get(sc.itineraryOrder);
       // Defensive only — STEP 8 always derives sc.itineraryOrder from this same itinerary.
@@ -90,11 +100,26 @@ export async function scoreTripCandidates(
             routeDurationSeconds: route?.durationSeconds ?? null,
             routeDistanceMeters: route?.distanceMeters ?? null,
           });
-          return { kind, place, breakdown };
+          return { kind, place, breakdown, route };
         }),
       );
 
       return { itineraryOrder: sc.itineraryOrder, ranked: rankScored(ranked) };
     }),
   );
+
+  return { slotRankings, travelState: context.travelState };
+}
+
+/**
+ * Scores every candidate STEP 8 generated for each FLEXIBLE slot, plus that
+ * slot's "keep current" option, and returns them ranked. `[]` slots when
+ * there's nothing to score (mirrors `generateCandidatesForTrip`). Never
+ * writes the itinerary.
+ */
+export async function scoreTripCandidates(
+  tripId: string,
+  options: ScoreTripOptions = {},
+): Promise<SlotRanking[]> {
+  return (await scoreTripCandidatesWithContext(tripId, options)).slotRankings;
 }

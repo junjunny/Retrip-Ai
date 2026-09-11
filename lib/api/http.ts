@@ -14,6 +14,9 @@ export interface FetchJsonOptions {
   /** retries for transient failures only (default 2) */
   retries?: number;
   headers?: Record<string, string>;
+  /** default "GET" — every adapter but lib/llm reads, so this stays optional. */
+  method?: string;
+  body?: string;
   /**
    * Next.js fetch cache hint. Tourism/accessibility content changes rarely,
    * visitor data is daily, weather ~hourly — callers pass the right TTL.
@@ -28,7 +31,7 @@ export async function fetchJson<T = unknown>(
   url: string,
   opts: FetchJsonOptions,
 ): Promise<T> {
-  const { source, timeoutMs = 9000, retries = 2, headers, revalidateSeconds } = opts;
+  const { source, timeoutMs = 9000, retries = 2, headers, method, body, revalidateSeconds } = opts;
   let lastErr: ExternalApiError | undefined;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -38,6 +41,8 @@ export async function fetchJson<T = unknown>(
       const res = await fetch(url, {
         signal: controller.signal,
         headers,
+        ...(method !== undefined ? { method } : {}),
+        ...(body !== undefined ? { body } : {}),
         ...(revalidateSeconds !== undefined
           ? { next: { revalidate: revalidateSeconds } }
           : {}),

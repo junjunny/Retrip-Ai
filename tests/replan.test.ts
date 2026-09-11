@@ -58,6 +58,7 @@ const option = (kind: "candidate" | "keepCurrent", p: CandidatePlace, finalScore
   kind,
   place: p,
   breakdown: breakdown(finalScore),
+  route: null,
 });
 
 const keepCurrentOf = (slot: ItineraryItem, finalScore: number): RankedOption =>

@@ -21,7 +21,9 @@ import "server-only";
 
 import { applyPlaceChoices, coerceItinerary, type PlaceChoice } from "@/features/trip";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
-import { scoreTripCandidates } from "@/features/scoring/scoringService";
+import { scoreTripCandidates, scoreTripCandidatesWithContext } from "@/features/scoring/scoringService";
+import { generateReplanExplanation } from "@/features/replan/explanation/explanationService";
+import type { ReplanExplanation } from "@/features/replan/explanation/explanationSchema";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { ItineraryItem } from "@/types";
 
@@ -60,6 +62,22 @@ export interface GenerateReplanPreviewOptions {
   currentLocation?: { latitude: number; longitude: number } | null;
 }
 
+async function buildPreview(tripId: string, options: GenerateReplanPreviewOptions) {
+  const now = options.now ?? new Date();
+  const [{ itinerary }, { slotRankings, travelState }] = await Promise.all([
+    loadItinerary(tripId),
+    scoreTripCandidatesWithContext(tripId, { now, currentLocation: options.currentLocation }),
+  ]);
+
+  const preview = buildReplanPreview({
+    tripId,
+    generatedAt: now.toISOString(),
+    itinerary,
+    slotRankings,
+  });
+  return { preview, travelState };
+}
+
 /**
  * User pressed [Re:Plan]. Read-only: computes and returns a preview, never
  * writes the itinerary. `slots: []` (not an error) when there's nothing
@@ -70,18 +88,27 @@ export async function generateReplanPreview(
   tripId: string,
   options: GenerateReplanPreviewOptions = {},
 ): Promise<ReplanPreview> {
-  const now = options.now ?? new Date();
-  const [{ itinerary }, slotRankings] = await Promise.all([
-    loadItinerary(tripId),
-    scoreTripCandidates(tripId, { now, currentLocation: options.currentLocation }),
-  ]);
+  return (await buildPreview(tripId, options)).preview;
+}
 
-  return buildReplanPreview({
-    tripId,
-    generatedAt: now.toISOString(),
-    itinerary,
-    slotRankings,
+/**
+ * Same as `generateReplanPreview`, plus a human-readable explanation of the
+ * result (STEP 11). The explanation is generated ONCE for the whole preview
+ * (never per slot — AGENTS-spec §31) via `features/replan/explanation`,
+ * which degrades to a deterministic fallback on any LLM failure and never
+ * throws — so this function's own failure surface is identical to
+ * `generateReplanPreview`'s.
+ */
+export async function generateReplanPreviewWithExplanation(
+  tripId: string,
+  options: GenerateReplanPreviewOptions = {},
+): Promise<{ preview: ReplanPreview; explanation: ReplanExplanation }> {
+  const { preview, travelState } = await buildPreview(tripId, options);
+  const explanation = await generateReplanExplanation(preview, {
+    weatherRisk: travelState.weatherRisk,
+    trafficBurden: travelState.trafficBurden,
   });
+  return { preview, explanation };
 }
 
 export interface ApplyReplanOptions {

@@ -1,7 +1,6 @@
 /**
- * lib/llm — external-service adapter (PHASE 0 placeholder).
- *
- * All llm network calls will live here so that pages / features never talk to
- * the external API directly. Nothing is implemented yet.
+ * lib/llm — external-service adapter. All LLM network calls live here so
+ * pages / features never talk to the external API directly (STEP 11).
  */
-export {};
+export { generateJsonCompletion } from "./openai";
+export type { JsonCompletionParams } from "./openai";

@@ -6,9 +6,10 @@ import type { ItineraryItem } from "@/types";
 
 /**
  * Thin client-side mirror of `ReplanPreview`/`ReplanSlotProposal`
- * (features/replan/replan.ts) — just enough to render plain text. No score
- * fields are used here on purpose: this STEP ships no score badge, no
- * ranking UI, no LLM explanation (see AGENTS-spec §31).
+ * (features/replan/replan.ts) — just enough to render plain text. No numeric
+ * score is used here on purpose: this STEP still ships no score badge, no
+ * ranking dashboard — only the STEP 11 natural-language explanation (see
+ * AGENTS-spec §26).
  */
 interface ReplanSlotProposal {
   itineraryOrder: number;
@@ -20,6 +21,14 @@ interface ReplanPreview {
   baseItineraryFingerprint: string;
   generatedAt: string;
   slots: ReplanSlotProposal[];
+}
+/** Mirrors features/replan/explanation/explanationSchema.ts's `ReplanExplanation`. */
+interface ReplanExplanation {
+  title: string;
+  summary: string;
+  reasons: string[];
+  cautions: string[];
+  slotReasons: { itineraryOrder: number; reason: string }[];
 }
 
 type Phase = "idle" | "loading" | "preview" | "applying" | "applied" | "error";
@@ -40,6 +49,7 @@ export function ReplanPanel({
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<ReplanPreview | null>(null);
+  const [explanation, setExplanation] = useState<ReplanExplanation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function startReplan() {
@@ -54,6 +64,7 @@ export function ReplanPanel({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "failed");
       setPreview(data.preview as ReplanPreview);
+      setExplanation((data.explanation as ReplanExplanation | undefined) ?? null);
       setPhase("preview");
     } catch {
       setError("계획을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.");
@@ -64,6 +75,7 @@ export function ReplanPanel({
   function keepExisting() {
     // NO WRITE — dismissing the preview never touches the itinerary.
     setPreview(null);
+    setExplanation(null);
     setPhase("idle");
   }
 
@@ -92,6 +104,7 @@ export function ReplanPanel({
       }
       onApplied(data.itinerary as ItineraryItem[]);
       setPreview(null);
+      setExplanation(null);
       setPhase("applied");
     } catch {
       setError("적용하지 못했습니다. 잠시 후 다시 시도해주세요.");
@@ -127,20 +140,51 @@ export function ReplanPanel({
           {preview.slots.length === 0 ? (
             <p className="text-sm text-zinc-500">지금 다시 계획할 수 있는 일정이 없어요.</p>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {preview.slots.map((s) => (
-                <li key={s.itineraryOrder} className="text-sm">
-                  <span className="tabular-nums text-zinc-500">{s.current.time}</span>{" "}
-                  {s.action === "KEEP" ? (
-                    <span>{s.current.placeName} · 기존 유지</span>
-                  ) : (
-                    <span>
-                      {s.current.placeName} → <span className="font-medium">{s.proposed?.placeName}</span>
-                    </span>
+            <>
+              {explanation && (
+                <div className="flex flex-col gap-2 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+                  <p className="font-medium">{explanation.title}</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">{explanation.summary}</p>
+                  {explanation.reasons.length > 0 && (
+                    <ul className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+                      {explanation.reasons.map((r, i) => (
+                        <li key={i}>· {r}</li>
+                      ))}
+                    </ul>
                   )}
-                </li>
-              ))}
-            </ul>
+                  {explanation.cautions.length > 0 && (
+                    <ul className="flex flex-col gap-1 text-sm text-amber-700 dark:text-amber-400">
+                      {explanation.cautions.map((c, i) => (
+                        <li key={i}>⚠ {c}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <ul className="flex flex-col gap-2">
+                {preview.slots.map((s) => {
+                  const slotReason = explanation?.slotReasons.find((r) => r.itineraryOrder === s.itineraryOrder);
+                  return (
+                    <li key={s.itineraryOrder} className="text-sm">
+                      <div>
+                        <span className="tabular-nums text-zinc-500">{s.current.time}</span>{" "}
+                        {s.action === "KEEP" ? (
+                          <span>{s.current.placeName} · 기존 유지</span>
+                        ) : (
+                          <span>
+                            {s.current.placeName} → <span className="font-medium">{s.proposed?.placeName}</span>
+                          </span>
+                        )}
+                      </div>
+                      {slotReason && (
+                        <p className="pl-2 text-xs text-zinc-500">{slotReason.reason}</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
 
           {changedSlots.length > 0 ? (
