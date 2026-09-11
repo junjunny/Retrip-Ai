@@ -179,11 +179,54 @@ export interface NormalizedPlace {
 export type ExperienceProfile = Record<PreferenceKey, number>;
 
 /**
- * Unified snapshot of the current trip conditions — weather, traffic, crowd,
- * etc. — produced by the Travel State Engine (Phase 7).
+ * "low"/"medium"/"high" is the only resolution Travel State needs for a risk
+ * signal — see features/travel-state. "unknown" means insufficient trustworthy
+ * data, NEVER a guess (no weather forecast, no route, etc).
+ */
+export type RiskLevel = "low" | "medium" | "high" | "unknown";
+
+/**
+ * Internal engine state only (STEP 7). NEVER shown to the user, NEVER drives an
+ * automatic itinerary change, alert, or Re:Plan run — only a future
+ * user-triggered Re:Plan (STEP 10) may consult it.
+ */
+export type TravelStateStatus = "NORMAL" | "WATCH" | "INTERVENTION";
+
+/**
+ * "How is this trip doing against its own plan, right now" — NOT a
+ * recommendation, NOT a score, NOT Re:Plan, and NOT the group's Experience
+ * Profile (STEP 6 answers "what does this group want"; this answers "what's
+ * actually happening"). Computed on demand by `buildTravelState`
+ * (features/travel-state) — never persisted.
+ *
+ * Every optional/null field means "not enough trustworthy data" — reliable
+ * current-location, visit-confirmation, and traffic-baseline data don't exist
+ * in this project yet, so those metrics degrade to null/"unknown" rather than
+ * being estimated.
  */
 export interface TravelState {
   tripId: string;
+  /** The plain "YYYY-MM-DD"/"HH:mm" (KST) clock reading this snapshot was computed for — injected by the caller, never read from the system clock inside a pure calculator. */
+  now: { date: string; time: string };
+
+  /** Minutes behind the next not-yet-completed item scheduled for `now.date`; 0 when on/ahead of schedule; null when there's no such item to compare against. This is "plan vs. clock", never a claimed arrival delay. */
+  scheduleDelayMinutes: number | null;
+  /** Minutes from `now` to the last scheduled item on `now.date` — remaining PLANNED time, not "free time"; null with no items today. */
+  remainingScheduleMinutes: number | null;
+
+  weatherRisk: RiskLevel;
+  weatherRiskReason: string;
+
+  trafficBurden: RiskLevel;
+  trafficBurdenReason: string;
+
+  /** 0 (completed visits match the group's Experience Profile) .. 1 (opposite); null without both a profile and trustworthy completed-visit category data — visit tracking by category doesn't exist yet, so this is always null in production today. */
+  experienceDeviation: number | null;
+
+  /** How spread out the group's preferences are (0 = identical); null with 0-1 participants who submitted preferences. */
+  preferenceDisagreement: number | null;
+
+  status: TravelStateStatus;
 }
 
 /** A candidate re-designed plan produced by the Re:Plan Engine (Phase 8). */

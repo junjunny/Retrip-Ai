@@ -1,8 +1,24 @@
 /**
- * features/travel-state — Re:Trip domain logic (PHASE 0 placeholder).
+ * features/travel-state — Travel State Engine (STEP 7): "how is this trip
+ * doing against its own plan right now" as an internal snapshot, never a
+ * recommendation, score, or Re:Plan trigger. See ./travelState for the domain
+ * model and thresholds.
  *
- * Business logic for the "travel-state" domain lives here, decoupled from UI and from
- * other features. Engines (Travel State, Re:Plan) will be written as pure,
- * testable functions: input -> calculation -> output. Nothing implemented yet.
+ * Everything here is pure and browser-safe. The server-only
+ * `getTripTravelState` (Firestore + external adapters) lives in
+ * `./travelStateService` and must be imported from there directly, never
+ * re-exported here.
  */
-export {};
+export {
+  TRAVEL_STATE_THRESHOLDS,
+  buildTravelState,
+  computeExperienceDeviation,
+  computePreferenceDisagreement,
+  computeRemainingScheduleMinutes,
+  computeScheduleDelayMinutes,
+  computeTrafficBurden,
+  computeTravelStateStatus,
+  computeWeatherRisk,
+  pickNextPendingItem,
+} from "./travelState";
+export type { TravelStateInput } from "./travelState";
