@@ -113,6 +113,12 @@ export interface PlaceLocation {
   provider: "kakao";
 }
 
+/** One point of a decoded route geometry (WGS84). */
+export interface RoutePolylinePoint {
+  latitude: number;
+  longitude: number;
+}
+
 /**
  * A driving route between two points — Kakao Mobility Directions.
  * `durationSeconds` is traffic-aware for priority RECOMMEND. Traffic state codes
@@ -135,6 +141,14 @@ export interface RouteData {
     /** road.traffic_state, raw code */
     trafficState: number | null;
   }[];
+  /**
+   * Real turn-by-turn geometry (STEP 13) — concatenation of every road
+   * segment's `vertexes` (the API returns them unless a caller opts out with
+   * `summary=true`, which this adapter never does), in path order. `[]` only
+   * if the API response genuinely had no vertexes for any road — never
+   * synthesized from the two endpoints (that would be a fake straight line).
+   */
+  polyline: RoutePolylinePoint[];
   /** when Re:Trip fetched this (the API has no such field) */
   fetchedAt: string;
   provider: "kakao-mobility";

@@ -3,14 +3,30 @@
  *
  * Runs STEP 2's `resolvePlace` (TourAPI + Kakao Local, server-only) and returns
  * the `NormalizedPlace`. Suggestion only — the client shows candidates and the
- * user picks. `tripId` is accepted for symmetry / future rate-limiting.
+ * user picks. Rate-limited per `tripId` (STEP 13 §16) — this proxies two paid
+ * external APIs and takes an arbitrary free-text query, so it's the easiest
+ * route in this project to turn into a free lookup service if left open.
  */
 import { ExternalApiError } from "@/lib/api";
+import { allowRequest } from "@/lib/rateLimit";
 import { resolvePlace } from "@/lib/place/resolve";
 
 export const maxDuration = 20;
 
-export async function GET(req: Request) {
+const RESOLVE_COOLDOWN_MS = 1_000;
+
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ tripId: string }> },
+) {
+  const { tripId } = await params;
+  if (!allowRequest(`resolve:${tripId}`, RESOLVE_COOLDOWN_MS)) {
+    return Response.json(
+      { error: "너무 빠르게 다시 요청했어요. 잠시 후 다시 시도해주세요." },
+      { status: 429 },
+    );
+  }
+
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   if (!q) return Response.json({ error: "검색어를 입력해주세요." }, { status: 400 });

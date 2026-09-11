@@ -6,6 +6,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { generateCandidatesForTrip, generateCandidatesWithContext } from "@/features/candidate/candidateService";
+import { defaultPreferenceVector } from "@/features/participant/participant";
+import { submitParticipant } from "@/features/participant/participantService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { getAdminDb } from "@/lib/firebase/admin";
 
@@ -76,5 +78,31 @@ d("generateCandidatesForTrip (live)", () => {
     const contextNoPref = await generateCandidatesWithContext(tripId, { now });
     // Case D: neither tripPreference nor participants -> null, never fabricated
     expect(contextNoPref.experienceProfile).toBeNull();
+  });
+
+  it("STEP 13 — Case A: tripPreference null + a real participant exists -> falls back to the participant's own profile", async () => {
+    const now = new Date("2026-10-01T01:00:00.000Z");
+    await getAdminDb()!.doc(`trips/${tripId}`).update({ tripPreference: null });
+    const participantVector = { ...defaultPreferenceVector(), nature: 9, photo: 9 };
+    await submitParticipant(tripId, {
+      nickname: "케이스A",
+      preferences: participantVector,
+      pace: "normal",
+      indoorOutdoor: "balanced",
+    });
+
+    const context = await generateCandidatesWithContext(tripId, { now });
+    expect(context.experienceProfile).toEqual(participantVector);
+  });
+
+  it("STEP 13 — Case B: tripPreference set + a real (differently-preferring) participant exists -> tripPreference wins, participant average is never consulted", async () => {
+    const now = new Date("2026-10-01T01:00:00.000Z");
+    // the participant added in Case A is still on this trip, with nature/photo=9 —
+    // tripPreference below deliberately picks the OPPOSITE axes so a leak would be obvious.
+    const tripPreference = { ...defaultPreferenceVector(), shopping: 9, food: 9, nature: 1, photo: 1 };
+    await getAdminDb()!.doc(`trips/${tripId}`).update({ tripPreference });
+
+    const context = await generateCandidatesWithContext(tripId, { now });
+    expect(context.experienceProfile).toEqual(tripPreference);
   });
 });

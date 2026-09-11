@@ -8,7 +8,7 @@ import { MiniGuide } from "@/components/trip/MiniGuide";
 import { ReplanPanel } from "@/components/trip/ReplanPanel";
 import { TripParticipants } from "@/components/trip/TripParticipants";
 import { getTrip } from "@/features/trip";
-import type { ItineraryItem, Trip } from "@/types";
+import type { ItineraryItem, RoutePolylinePoint, Trip } from "@/types";
 
 type State =
   | { status: "loading" }
@@ -92,6 +92,8 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [trip, setTrip] = useState(initialTrip);
   // bump on every Re:Plan apply so ItineraryPlaces remounts with the fresh itinerary as its initial state.
   const [itineraryVersion, setItineraryVersion] = useState(0);
+  // a Re:Plan candidate's real route geometry, shown on the same map as the itinerary (STEP 13 §11).
+  const [previewPolyline, setPreviewPolyline] = useState<RoutePolylinePoint[] | null>(null);
 
   const handleReplanApplied = (itinerary: ItineraryItem[]) => {
     setTrip((t) => ({ ...t, itinerary }));
@@ -112,11 +114,16 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-zinc-500">여행 일정</h2>
-        <ItineraryPlaces key={itineraryVersion} trip={trip} />
+        <ItineraryPlaces key={itineraryVersion} trip={trip} overlayPolyline={previewPolyline} />
       </section>
 
       <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <ReplanPanel tripId={trip.tripId} onApplied={handleReplanApplied} />
+        <ReplanPanel
+          tripId={trip.tripId}
+          itinerary={trip.itinerary}
+          onApplied={handleReplanApplied}
+          onPolylinePreview={setPreviewPolyline}
+        />
       </section>
 
       <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">

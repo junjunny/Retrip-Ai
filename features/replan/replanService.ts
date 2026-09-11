@@ -28,7 +28,12 @@ import type { ReplanExplanation } from "@/features/replan/explanation/explanatio
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { ItineraryItem } from "@/types";
 
-import { buildReplanPreview, computeItineraryFingerprint, type ReplanPreview } from "./replan";
+import {
+  buildReplanPreview,
+  computeItineraryFingerprint,
+  computeLocationFingerprint,
+  type ReplanPreview,
+} from "./replan";
 
 export class ReplanStaleError extends Error {
   constructor() {
@@ -75,6 +80,7 @@ async function buildPreview(tripId: string, options: GenerateReplanPreviewOption
     generatedAt: now.toISOString(),
     itinerary,
     slotRankings,
+    currentLocation: options.currentLocation,
   });
   return { preview, travelState };
 }
@@ -116,20 +122,36 @@ export async function generateReplanPreviewWithExplanation(
 export interface ApplyReplanOptions {
   /** the fingerprint the client's preview was built against — must match the LIVE itinerary's fingerprint right now. */
   baseItineraryFingerprint: string;
+  /**
+   * The preview's own `baseLocationFingerprint` (STEP 13) — must match
+   * `computeLocationFingerprint(currentLocation)` below. Preview and Apply
+   * must agree on WHERE the user was, since mobility/scoring were computed
+   * for that origin; a changed origin means this isn't "the same plan"
+   * anymore and the client must re-Preview.
+   */
+  baseLocationFingerprint: string;
   /** the preview's own `generatedAt` — reused as `now` so Apply reproduces the exact proposal the user reviewed. */
   generatedAt: string;
   currentLocation?: { latitude: number; longitude: number } | null;
 }
 
 /**
- * User pressed [이 계획 적용]. Re-verifies the itinerary is unchanged
- * (`ReplanStaleError` otherwise — never applies over a stale base), then
- * recomputes the proposal server-side (deterministic given the same
- * itinerary + `now`) and writes ONLY its REPLACE slots' place fields
- * (never date/time/order/status — `applyPlaceChoices` reuses STEP 3's
- * field-limited `applyPlaceChoice`). A candidate that wasn't independently
- * `verified` is written with `placeConfirmed: false` — never forced true.
- * `[기존 일정 유지]` never calls this function at all — see the route.
+ * User pressed [이 계획 적용]. Re-verifies the itinerary AND the origin are
+ * unchanged since the preview (`ReplanStaleError` otherwise — never applies
+ * over a stale base), then recomputes the proposal server-side (deterministic
+ * given the same itinerary + `now` + `currentLocation`) and writes ONLY its
+ * REPLACE slots' place fields (never date/time/order/status —
+ * `applyPlaceChoices` reuses STEP 3's field-limited `applyPlaceChoice`). A
+ * candidate that wasn't independently `verified` is written with
+ * `placeConfirmed: false` — never forced true. `[기존 일정 유지]` never calls
+ * this function at all — see the route.
+ *
+ * Concurrency (STEP 13): the slow work (scoring, external APIs) happens
+ * OUTSIDE any Firestore transaction — never call an external API from inside
+ * `runTransaction`. The actual read-check-write for the final commit happens
+ * INSIDE one, so a write that lands between this function's first read and
+ * its commit is caught (the transaction's own fresh read won't match
+ * `baseItineraryFingerprint` either) instead of silently overwritten.
  */
 export async function applyReplanPreview(
   tripId: string,
@@ -139,6 +161,10 @@ export async function applyReplanPreview(
 
   const liveFingerprint = computeItineraryFingerprint(liveItinerary);
   if (liveFingerprint !== options.baseItineraryFingerprint) {
+    throw new ReplanStaleError();
+  }
+  const liveLocationFingerprint = computeLocationFingerprint(options.currentLocation ?? null);
+  if (liveLocationFingerprint !== options.baseLocationFingerprint) {
     throw new ReplanStaleError();
   }
 
@@ -152,6 +178,7 @@ export async function applyReplanPreview(
     generatedAt: options.generatedAt,
     itinerary: liveItinerary,
     slotRankings,
+    currentLocation: options.currentLocation,
   });
 
   const liveByOrder = new Map(liveItinerary.map((it) => [it.order, it]));
@@ -182,6 +209,22 @@ export async function applyReplanPreview(
   }
 
   const next = applyPlaceChoices(liveItinerary, choices);
-  await ref.update({ itinerary: next });
+
+  // Commit inside a transaction that re-reads and re-checks the itinerary
+  // fingerprint at the last possible moment — closes the gap between the
+  // read at the top of this function and this write. No external API call
+  // happens in here, only Firestore reads/writes (see the module docstring).
+  await requireDb().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new TripNotFoundError();
+    const data = snap.data() ?? {};
+    const startDate = typeof data.startDate === "string" ? data.startDate : "";
+    const freshItinerary = coerceItinerary(data.itinerary, startDate);
+    if (computeItineraryFingerprint(freshItinerary) !== options.baseItineraryFingerprint) {
+      throw new ReplanStaleError();
+    }
+    tx.update(ref, { itinerary: next });
+  });
+
   return { itinerary: next, changedCount: choices.length };
 }

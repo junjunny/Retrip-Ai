@@ -10,12 +10,13 @@ import "server-only";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { ExperienceProfile, ItineraryItem } from "@/types";
 
-import { applyPlaceChoice, type PlaceChoice } from "./itineraryPlace";
+import { applyPlaceChoice, isValidPlaceChoice, type PlaceChoice } from "./itineraryPlace";
 import {
   applyItineraryEdit,
   coerceItinerary,
   coerceTripPreference,
   removeItineraryItem,
+  tripDates,
   type ItineraryEdit,
 } from "./trip";
 
@@ -29,6 +30,12 @@ export class ItineraryItemNotFoundError extends Error {
   constructor(order: number) {
     super(`일정 항목(${order})을 찾을 수 없습니다.`);
     this.name = "ItineraryItemNotFoundError";
+  }
+}
+export class InvalidItineraryEditError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidItineraryEditError";
   }
 }
 
@@ -61,6 +68,11 @@ export async function updateItineraryPlace(
   if (!items.some((it) => it.order === order)) {
     throw new ItineraryItemNotFoundError(order);
   }
+  // Defense in depth beyond the route's own check (STEP 13 §19) — this is
+  // the single choke point every place write goes through.
+  if (!isValidPlaceChoice(choice)) {
+    throw new InvalidItineraryEditError("장소 좌표 값을 확인해주세요.");
+  }
 
   const next = applyPlaceChoice(items, order, choice);
   await ref.update({ itinerary: next });
@@ -86,21 +98,32 @@ async function loadItems(tripId: string) {
   if (!snap.exists) throw new TripNotFoundError();
   const data = snap.data() ?? {};
   const startDate = typeof data.startDate === "string" ? data.startDate : "";
-  return { ref, items: coerceItinerary(data.itinerary, startDate) };
+  const endDate = typeof data.endDate === "string" ? data.endDate : "";
+  return { ref, items: coerceItinerary(data.itinerary, startDate), startDate, endDate };
 }
 
 /**
  * Edits an item's schedule fields (date / time / placeName / scheduleType) and
- * renumbers. A placeName change resets the resolved place (see `applyItineraryEdit`).
+ * renumbers. A placeName change resets the resolved place (see
+ * `applyItineraryEdit`). STEP 13 §19: a `date` edit is rejected server-side
+ * (never relying on the UI's own date-picker range) if it falls outside the
+ * trip's own [startDate, endDate] — the same rule `validateTripDraft` already
+ * enforces at creation time, now enforced again at the edit boundary.
  */
 export async function editItineraryItem(
   tripId: string,
   order: number,
   edit: ItineraryEdit,
 ): Promise<ItineraryItem[]> {
-  const { ref, items } = await loadItems(tripId);
+  const { ref, items, startDate, endDate } = await loadItems(tripId);
   if (!items.some((it) => it.order === order)) {
     throw new ItineraryItemNotFoundError(order);
+  }
+  if (edit.date !== undefined) {
+    const validDates = tripDates(startDate, endDate);
+    if (validDates.length > 0 && !validDates.includes(edit.date)) {
+      throw new InvalidItineraryEditError("여행 기간에 없는 날짜입니다.");
+    }
   }
   const next = applyItineraryEdit(items, order, edit);
   await ref.update({ itinerary: next });

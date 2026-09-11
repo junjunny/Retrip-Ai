@@ -11,7 +11,7 @@
 import "server-only";
 
 import { serverEnv } from "@/config/env";
-import type { RouteData } from "@/types";
+import type { RouteData, RoutePolylinePoint } from "@/types";
 
 import { num, str } from "../coerce";
 import { ExternalApiError } from "../errors";
@@ -29,6 +29,8 @@ interface RawRoad {
   duration?: number;
   traffic_speed?: number;
   traffic_state?: number;
+  /** flattened [lng, lat, lng, lat, ...] in path order. */
+  vertexes?: number[];
 }
 interface RawSection {
   roads?: RawRoad[];
@@ -89,15 +91,17 @@ export async function fetchDrivingRoute(p: DirectionsParams): Promise<RouteData>
     throw new ExternalApiError("bad_response", SOURCE, "route summary missing distance/duration");
   }
 
-  const trafficSegments = (route.sections ?? [])
-    .flatMap((s) => s.roads ?? [])
-    .map((r) => ({
-      name: str(r.name) ?? "",
-      distanceMeters: num(r.distance) ?? 0,
-      durationSeconds: num(r.duration) ?? 0,
-      speedKmh: num(r.traffic_speed),
-      trafficState: num(r.traffic_state),
-    }));
+  const roads = (route.sections ?? []).flatMap((s) => s.roads ?? []);
+
+  const trafficSegments = roads.map((r) => ({
+    name: str(r.name) ?? "",
+    distanceMeters: num(r.distance) ?? 0,
+    durationSeconds: num(r.duration) ?? 0,
+    speedKmh: num(r.traffic_speed),
+    trafficState: num(r.traffic_state),
+  }));
+
+  const polyline: RoutePolylinePoint[] = roads.flatMap((r) => decodeVertexes(r.vertexes));
 
   return {
     distanceMeters: distance,
@@ -106,7 +110,18 @@ export async function fetchDrivingRoute(p: DirectionsParams): Promise<RouteData>
     tollFare: num(summary.fare?.toll),
     priority: str(summary.priority) ?? (p.priority ?? "RECOMMEND"),
     trafficSegments,
+    polyline,
     fetchedAt: new Date().toISOString(),
     provider: "kakao-mobility",
   };
+}
+
+/** [lng, lat, lng, lat, ...] -> [{latitude, longitude}, ...]. `undefined`/odd-length input -> []. */
+function decodeVertexes(vertexes: number[] | undefined): RoutePolylinePoint[] {
+  if (!Array.isArray(vertexes)) return [];
+  const points: RoutePolylinePoint[] = [];
+  for (let i = 0; i + 1 < vertexes.length; i += 2) {
+    points.push({ longitude: vertexes[i], latitude: vertexes[i + 1] });
+  }
+  return points;
 }

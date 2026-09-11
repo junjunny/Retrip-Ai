@@ -1,6 +1,6 @@
 /**
  * POST /api/trip/{tripId}/replan/apply
- *   { baseItineraryFingerprint, generatedAt, currentLocation? }
+ *   { baseItineraryFingerprint, baseLocationFingerprint, generatedAt, currentLocation? }
  *
  * Only ever called after the user explicitly presses [이 계획 적용] on a
  * preview they were shown — never automatically. The request body carries
@@ -13,6 +13,9 @@
  */
 import { applyReplanPreview, ReplanStaleError } from "@/features/replan/replanService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
+import { allowRequest } from "@/lib/rateLimit";
+
+const APPLY_COOLDOWN_MS = 4_000;
 
 function parseCurrentLocation(v: unknown): { latitude: number; longitude: number } | null {
   if (typeof v !== "object" || v === null) return null;
@@ -31,6 +34,13 @@ export async function POST(
 ) {
   const { tripId } = await params;
 
+  if (!allowRequest(`replan-apply:${tripId}`, APPLY_COOLDOWN_MS)) {
+    return Response.json(
+      { error: "너무 빠르게 다시 요청했어요. 잠시 후 다시 시도해주세요." },
+      { status: 429 },
+    );
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;
@@ -39,8 +49,12 @@ export async function POST(
   }
 
   const baseItineraryFingerprint = body.baseItineraryFingerprint;
+  const baseLocationFingerprint = body.baseLocationFingerprint;
   const generatedAt = body.generatedAt;
   if (typeof baseItineraryFingerprint !== "string" || !baseItineraryFingerprint) {
+    return Response.json({ error: "요청 값을 확인해주세요." }, { status: 400 });
+  }
+  if (typeof baseLocationFingerprint !== "string" || !baseLocationFingerprint) {
     return Response.json({ error: "요청 값을 확인해주세요." }, { status: 400 });
   }
   if (typeof generatedAt !== "string" || Number.isNaN(new Date(generatedAt).getTime())) {
@@ -50,6 +64,7 @@ export async function POST(
   try {
     const result = await applyReplanPreview(tripId, {
       baseItineraryFingerprint,
+      baseLocationFingerprint,
       generatedAt,
       currentLocation: parseCurrentLocation(body.currentLocation),
     });

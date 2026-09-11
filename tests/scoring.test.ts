@@ -495,8 +495,41 @@ describe("M. No Fake Data", () => {
     expect(b.timeFitness).toBe(NEUTRAL_COMPONENT_SCORE);
     expect(b.travelBurden).toBeNull();
     expect(b.minimumSatisfactionPenalty).toBe(0);
-    // finalScore still a clean neutral composite, not a crash or an extreme value
-    expect(b.finalScore).toBeCloseTo(NEUTRAL_COMPONENT_SCORE * (SCORING_WEIGHTS.groupSatisfaction + SCORING_WEIGHTS.experiencePreservation + SCORING_WEIGHTS.situationFitness + SCORING_WEIGHTS.timeFitness), 5);
+    // finalScore still a clean neutral composite, not a crash or an extreme
+    // value — STEP 13: the unknown travelBurden also contributes its NEUTRAL
+    // weighted cost here, not zero (see "Unknown Travel Burden" below).
+    expect(b.finalScore).toBeCloseTo(
+      NEUTRAL_COMPONENT_SCORE *
+        (SCORING_WEIGHTS.groupSatisfaction + SCORING_WEIGHTS.experiencePreservation + SCORING_WEIGHTS.situationFitness + SCORING_WEIGHTS.timeFitness) -
+        NEUTRAL_COMPONENT_SCORE * SCORING_WEIGHTS.travelBurden,
+      5,
+    );
+  });
+});
+
+// ===========================================================================
+// M2. Unknown Travel Burden (STEP 13) — "unknown ≠ zero cost"
+// ===========================================================================
+describe("M2. Unknown Travel Burden", () => {
+  it("an unmeasured route scores the SAME travel-burden contribution as a real NEUTRAL-cost route, not the same as a real ZERO-cost route", () => {
+    const base = {
+      groupSatisfaction: 70,
+      experiencePreservation: 70,
+      situationFitness: 50,
+      timeFitness: 50,
+      minimumSatisfactionPenalty: 0,
+    };
+    const unknown = computeFinalScore({ ...base, travelBurden: null });
+    const realNeutral = computeFinalScore({ ...base, travelBurden: NEUTRAL_COMPONENT_SCORE });
+    const realZero = computeFinalScore({ ...base, travelBurden: 0 });
+    expect(unknown).toBe(realNeutral);
+    expect(unknown).toBeLessThan(realZero); // unknown must never look BETTER than a real, cheap, measured route
+  });
+
+  it("a candidate with a real (even long) measured route can still beat one with no route data at all, once it's genuinely cheap enough — but an unmeasured route is never automatically the winner", () => {
+    const measuredCheap = scoreCandidate(baseInput({ routeDurationSeconds: 60, routeDistanceMeters: 500 })); // ~1 min, near-zero burden
+    const unmeasured = scoreCandidate(baseInput({ routeDurationSeconds: null, routeDistanceMeters: null }));
+    expect(measuredCheap.finalScore).toBeGreaterThan(unmeasured.finalScore);
   });
 });
 

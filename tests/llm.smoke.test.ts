@@ -66,6 +66,7 @@ const preview: ReplanPreview = {
   tripId: "LLMSMOKE",
   generatedAt: "2026-10-01T01:00:00.000Z",
   baseItineraryFingerprint: "deadbeef",
+  baseLocationFingerprint: "none",
   slots: [slot],
 };
 

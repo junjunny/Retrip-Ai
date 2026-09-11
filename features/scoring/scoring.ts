@@ -42,11 +42,16 @@
  *
  * ── Unknown data ─────────────────────────────────────────────────────────
  * A component with no real data behind it NEVER becomes an invented "good" or
- * "bad" number. Two-sided components (groupSatisfaction, experiencePreservation)
- * fall back to NEUTRAL_COMPONENT_SCORE (50) for the final-score sum when they
- * can't be computed (kept as `null` in the breakdown for transparency).
- * One-sided COST components (travelBurden) fall back to 0 (no *evidenced*
- * cost) rather than a mid-scale guess, because "unknown" is not "medium cost".
+ * "bad" number. Every component — two-sided (groupSatisfaction,
+ * experiencePreservation) or the one-sided cost (travelBurden) — falls back to
+ * NEUTRAL_COMPONENT_SCORE (50) for the final-score sum when it can't be
+ * computed (kept as `null` in the breakdown for transparency). STEP 13: an
+ * earlier version of this module fell back travelBurden to 0 ("no *evidenced*
+ * cost"), but 0 is the BEST possible travel-burden score — a candidate with no
+ * measured route was silently winning the travel-burden component outright
+ * over every candidate that actually got measured. "Unknown" must never score
+ * better than "known and cheap"; neutral is the honest value for "we didn't
+ * measure this", exactly like the two-sided components already did.
  */
 import { INDOOR_CONTENT_TYPES, OUTDOOR_CONTENT_TYPES, PREFERENCE_TO_CONTENT_TYPE } from "@/features/candidate";
 import { PREFERENCE_KEYS, PREFERENCE_MAX, PREFERENCE_MIN, PREFERENCE_NEUTRAL } from "@/features/participant/participant";
@@ -55,6 +60,7 @@ import type {
   CandidatePlace,
   ExperienceProfile,
   ItineraryItem,
+  MobilityOption,
   PreferenceKey,
   PreferenceVector,
   RiskLevel,
@@ -324,8 +330,10 @@ export function computeTimeFitness(
 
 /**
  * `null` (no real Kakao Mobility route) -> `null`, kept in the breakdown for
- * transparency; `computeFinalScore` treats a null burden as 0 (no *evidenced*
- * cost), never a mid-scale guess — an unmeasured trip is not "medium effort".
+ * transparency; `computeFinalScore` treats a null burden as
+ * NEUTRAL_COMPONENT_SCORE (STEP 13) — an unmeasured trip is neither "free" nor
+ * "medium effort", it's simply not measured, and must not silently outscore a
+ * candidate whose real (low) burden was actually measured.
  * Uses duration only (not distance): for burden purposes the two are highly
  * correlated and duration is the more directly felt cost; distance would only
  * matter for a fare/cost estimate, out of scope here.
@@ -353,13 +361,15 @@ export interface FinalScoreInput {
  * positiveScore = weighted(groupSatisfaction, experiencePreservation,
  *   situationFitness, timeFitness) — two-sided unknowns fall back to
  *   NEUTRAL_COMPONENT_SCORE here (see module docstring).
- * negativeScore = weighted(travelBurden ?? 0) + minimumSatisfactionPenalty
+ * negativeScore = weighted(travelBurden ?? NEUTRAL_COMPONENT_SCORE) + minimumSatisfactionPenalty
+ *   — an unmeasured route is neutral cost, never the best-possible (0) cost
+ *   (see module docstring, STEP 13).
  * finalScore = clamp(positiveScore - negativeScore, 0, 100)
  */
 export function computeFinalScore(input: FinalScoreInput): number {
   const gs = input.groupSatisfaction ?? NEUTRAL_COMPONENT_SCORE;
   const ep = input.experiencePreservation ?? NEUTRAL_COMPONENT_SCORE;
-  const tb = input.travelBurden ?? 0;
+  const tb = input.travelBurden ?? NEUTRAL_COMPONENT_SCORE;
 
   const positiveScore =
     SCORING_WEIGHTS.groupSatisfaction * gs +
@@ -487,6 +497,16 @@ export interface RankedOption {
    * the scoring formula, weights, and thresholds are untouched (see STEP 9).
    */
   route: { durationSeconds: number; distanceMeters: number } | null;
+  /**
+   * All three transport modes (STEP 13), built from the SAME route fetch
+   * `route` above came from — never a second Kakao Mobility call for the same
+   * pair (see features/scoring/scoringService.ts). Optional so every
+   * existing `RankedOption` literal (tests, `itemToCandidateView` callers
+   * that never fetched a route) keeps compiling unchanged; `undefined` means
+   * "mobility wasn't computed for this entry" (e.g. hermetic test fixtures),
+   * NOT "no data" — a caller that fetched a route always sets it.
+   */
+  mobility?: MobilityOption[];
 }
 
 /**

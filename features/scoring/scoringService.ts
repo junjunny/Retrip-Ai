@@ -12,9 +12,10 @@
 import "server-only";
 
 import { generateCandidatesWithContext, type GenerateCandidatesOptions } from "@/features/candidate/candidateService";
+import { buildMobilityOptions } from "@/features/mobility";
 import { listPreferenceVectors } from "@/features/participant/participantService";
 import { fetchDrivingRoute } from "@/lib/api";
-import type { CandidatePlace, ItineraryItem, TravelState } from "@/types";
+import type { CandidatePlace, ItineraryItem, MobilityOption, RouteData, TravelState } from "@/types";
 
 import { itemToCandidateView, rankScored, scoreCandidate, type RankedOption } from "./scoring";
 
@@ -23,19 +24,20 @@ type LatLng = { latitude: number; longitude: number };
 /**
  * `null` whenever a real route can't be computed: no currentLocation supplied,
  * the place has no confirmed coordinates, or the Mobility adapter fails.
- * NEVER a guessed duration/distance.
+ * NEVER a guessed duration/distance. This is the ONE Kakao Mobility call per
+ * candidate — `buildMobilityOptions` below derives the UI's mobility card
+ * from this SAME result, never a second fetch (STEP 13).
  */
-async function fetchRouteMetrics(
+async function fetchRoute(
   currentLocation: LatLng | null,
   place: CandidatePlace,
-): Promise<{ durationSeconds: number; distanceMeters: number } | null> {
+): Promise<RouteData | null> {
   if (!currentLocation || place.latitude === null || place.longitude === null) return null;
   try {
-    const route = await fetchDrivingRoute({
+    return await fetchDrivingRoute({
       origin: currentLocation,
       destination: { latitude: place.latitude, longitude: place.longitude },
     });
-    return { durationSeconds: route.durationSeconds, distanceMeters: route.distanceMeters };
   } catch {
     return null;
   }
@@ -88,7 +90,11 @@ export async function scoreTripCandidatesWithContext(
 
       const ranked = await Promise.all(
         entries.map(async ({ kind, place }) => {
-          const route = await fetchRouteMetrics(currentLocation, place);
+          const routeData = await fetchRoute(currentLocation, place);
+          const route = routeData
+            ? { durationSeconds: routeData.durationSeconds, distanceMeters: routeData.distanceMeters }
+            : null;
+          const mobility: MobilityOption[] = buildMobilityOptions(routeData);
           const breakdown = scoreCandidate({
             place,
             preferenceVectors,
@@ -100,7 +106,7 @@ export async function scoreTripCandidatesWithContext(
             routeDurationSeconds: route?.durationSeconds ?? null,
             routeDistanceMeters: route?.distanceMeters ?? null,
           });
-          return { kind, place, breakdown, route };
+          return { kind, place, breakdown, route, mobility };
         }),
       );
 

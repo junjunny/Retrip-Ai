@@ -5,7 +5,6 @@
  */
 import { doc, getDoc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 
-import { defaultPreferenceVector } from "@/features/participant/participant";
 import { getFirestoreDb } from "@/lib/firebase/client";
 import type { Trip } from "@/types";
 
@@ -62,10 +61,14 @@ export async function createTrip(draft: TripDraft): Promise<string> {
       startDate: draft.startDate,
       endDate: draft.endDate,
       itinerary,
-      // always a full 8-axis vector for a new trip — all-neutral(5) when the
-      // creator never opened the "이번 여행은 어떤 여행인가요?" step. `null`
-      // is reserved for trips that predate STEP 12 entirely (see types/index.ts).
-      tripPreference: draft.tripPreference ?? defaultPreferenceVector(),
+      // STEP 13: `null` unless the creator actually used the "이번 여행은
+      // 어떤 여행인가요?" step — the UI only ever sends `tripPreference` when
+      // the user touched it (see TripCreateForm), so an omitted field here
+      // means "didn't use it", not "chose all-neutral". A trip predating
+      // STEP 12 is also `null` (the field is simply absent) — the two cases
+      // are indistinguishable and that's fine: both mean "fall back to the
+      // participant-averaged Experience Profile" (see types/index.ts).
+      tripPreference: draft.tripPreference ?? null,
       createdAt: serverTimestamp(),
       status: "active",
     });

@@ -4,27 +4,36 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
 
 import type { ItineraryMarker } from "@/features/trip";
+import type { RoutePolylinePoint } from "@/types";
 
 type LMap = import("leaflet").Map;
 type LMarker = import("leaflet").Marker;
+type LPolyline = import("leaflet").Polyline;
 
 /**
  * Read-only location map. Markers are DERIVED from the itinerary (see
  * `itineraryMarkers`) — the map never holds its own place data, so the list and
  * the map can't drift apart. Items with no coordinates get no marker.
+ *
+ * `routePolyline` (STEP 13 §11) draws ONE real route geometry, e.g. a Re:Plan
+ * candidate's driving route — never a straight line synthesized between two
+ * points. `null`/`[]`/omitted draws nothing.
  */
 export function TripMap({
   markers,
   activeOrder,
   onSelectOrder,
+  routePolyline,
 }: {
   markers: ItineraryMarker[];
   activeOrder: number | null;
   onSelectOrder: (order: number) => void;
+  routePolyline?: RoutePolylinePoint[] | null;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LMap | null>(null);
   const markerRef = useRef<Map<number, LMarker>>(new Map());
+  const polylineRef = useRef<LPolyline | null>(null);
   const onSelectRef = useRef(onSelectOrder);
   useEffect(() => {
     onSelectRef.current = onSelectOrder;
@@ -78,6 +87,24 @@ export function TripMap({
         }
       }
 
+      // real route geometry only — never a straight line between two points.
+      if (routePolyline && routePolyline.length > 0) {
+        const latLngs = routePolyline.map((p) => [p.latitude, p.longitude] as [number, number]);
+        if (polylineRef.current) {
+          polylineRef.current.setLatLngs(latLngs);
+        } else {
+          polylineRef.current = L.polyline(latLngs, {
+            color: "#2563eb",
+            weight: 4,
+            opacity: 0.8,
+            dashArray: "6 6",
+          }).addTo(map);
+        }
+      } else if (polylineRef.current) {
+        polylineRef.current.remove();
+        polylineRef.current = null;
+      }
+
       if (markers.length === 1) {
         map.setView([markers[0].latitude, markers[0].longitude], 15);
       } else if (markers.length > 1) {
@@ -92,7 +119,7 @@ export function TripMap({
     return () => {
       cancelled = true;
     };
-  }, [markers, activeOrder]);
+  }, [markers, activeOrder, routePolyline]);
 
   // dispose the map on unmount
   useEffect(
@@ -100,6 +127,7 @@ export function TripMap({
       mapRef.current?.remove();
       mapRef.current = null;
       markerRef.current.clear();
+      polylineRef.current = null;
     },
     [],
   );

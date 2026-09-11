@@ -56,13 +56,15 @@ close — see `tests/scoring.test.ts` §C.
 
 ## Unknown data policy
 
-- **Two-sided** components (Group Satisfaction, Experience Preservation): no
-  data → `null` in the breakdown (kept for future UI/debugging), but
-  `NEUTRAL_COMPONENT_SCORE` (50) when folded into `finalScore` — "no signal"
-  is genuinely the middle, not zero.
-- **One-sided cost** components (Travel Burden): no data → `null` in the
-  breakdown, but **0** when folded into `finalScore` — an unmeasured trip is
-  not "medium effort"; the honest default is "no evidenced cost".
+- Every component — two-sided (Group Satisfaction, Experience Preservation) or
+  the one-sided cost (Travel Burden) — degrades to `null` in the breakdown
+  (kept for transparency/debugging) but to `NEUTRAL_COMPONENT_SCORE` (50) when
+  folded into `finalScore`. **STEP 13 fix:** Travel Burden used to fall back to
+  0 ("no evidenced cost"), but 0 is the *best possible* travel-burden score —
+  an unmeasured route was silently winning that component outright over every
+  candidate whose route actually got measured. "Unknown" must never score
+  better than "known and cheap"; see `tests/scoring.test.ts`'s "Unknown Travel
+  Burden" block for the worked comparison.
 - Situation Fitness and Time Fitness never return `null` — they're designed to
   degrade to `NEUTRAL_COMPONENT_SCORE` internally the moment their real input
   (weather/traffic risk, route duration) is missing or `"unknown"`.

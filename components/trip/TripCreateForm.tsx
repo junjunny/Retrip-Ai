@@ -48,6 +48,11 @@ export function TripCreateForm() {
   const [rows, setRows] = useState<ItineraryRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [tripPreference, setTripPreference] = useState<ExperienceProfile>(defaultPreferenceVector());
+  // STEP 13: the section always holds a default vector for the UI to render,
+  // but that default must NOT be saved as if the user chose it — only a real
+  // interaction (moving any slider) counts as "used this step". See
+  // features/trip/tripService.ts's createTrip.
+  const [tripPreferenceTouched, setTripPreferenceTouched] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -95,7 +100,7 @@ export function TripCreateForm() {
           placeName,
           scheduleType,
         })),
-        tripPreference,
+        tripPreference: tripPreferenceTouched ? tripPreference : undefined,
       });
       router.push(`/trip/${tripId}`);
     } catch (err) {
@@ -258,7 +263,10 @@ export function TripCreateForm() {
               <span className="text-sm">{PREFERENCE_LABELS[key]}</span>
               <PreferenceScale
                 value={tripPreference[key]}
-                onChange={(v) => setTripPreference((p) => ({ ...p, [key as PreferenceKey]: v }))}
+                onChange={(v) => {
+                  setTripPreferenceTouched(true);
+                  setTripPreference((p) => ({ ...p, [key as PreferenceKey]: v }));
+                }}
                 label={PREFERENCE_LABELS[key]}
               />
             </div>

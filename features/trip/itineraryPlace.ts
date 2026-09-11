@@ -25,6 +25,22 @@ export interface PlaceChoice {
   confirmed?: boolean;
 }
 
+/**
+ * A place confirmation never trusts the client's coordinates blindly (STEP
+ * 13 §19 hardening): both coordinates must be present or both absent (never
+ * half a pair), and when present they must be real WGS84 values. Used at
+ * every place-write boundary — the itinerary PATCH route AND
+ * `applyPlaceChoices` (Re:Plan Apply) — so a malformed choice can never reach
+ * Firestore regardless of which caller produced it.
+ */
+export function isValidPlaceChoice(choice: PlaceChoice): boolean {
+  if (!choice.placeName.trim()) return false;
+  if ((choice.latitude === null) !== (choice.longitude === null)) return false;
+  if (choice.latitude !== null && (choice.latitude < -90 || choice.latitude > 90)) return false;
+  if (choice.longitude !== null && (choice.longitude < -180 || choice.longitude > 180)) return false;
+  return true;
+}
+
 /** Build a `PlaceChoice` from a `NormalizedPlace` (the "맞아요" path). */
 export function placeChoiceFromNormalized(np: NormalizedPlace): PlaceChoice {
   return {
@@ -71,12 +87,21 @@ export function applyPlaceChoice(
   );
 }
 
-/** Applies several place choices in one pass (folds `applyPlaceChoice` per order) — for Re:Plan Apply, which may replace multiple FLEXIBLE slots in one write. Pure. */
+/**
+ * Applies several place choices in one pass (folds `applyPlaceChoice` per
+ * order) — for Re:Plan Apply, which may replace multiple FLEXIBLE slots in
+ * one write. A choice that fails `isValidPlaceChoice` is skipped rather than
+ * applied — defense in depth beyond upstream candidate validation (STEP 13
+ * §19); this should never actually trigger given Candidate Generation's own
+ * filtering, but a write boundary never trusts that alone. Pure.
+ */
 export function applyPlaceChoices(
   items: ItineraryItem[],
   choices: readonly { order: number; choice: PlaceChoice }[],
 ): ItineraryItem[] {
-  return choices.reduce((acc, { order, choice }) => applyPlaceChoice(acc, order, choice), items);
+  return choices
+    .filter(({ choice }) => isValidPlaceChoice(choice))
+    .reduce((acc, { order, choice }) => applyPlaceChoice(acc, order, choice), items);
 }
 
 export interface ItineraryMarker {

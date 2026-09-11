@@ -11,13 +11,14 @@
 import {
   deleteItineraryItem,
   editItineraryItem,
+  InvalidItineraryEditError,
   ItineraryItemNotFoundError,
   TripNotFoundError,
   updateItineraryPlace,
 } from "@/features/trip/tripAdminService";
 import type { ItineraryEdit } from "@/features/trip";
 import type { PlaceChoice } from "@/features/trip";
-import { DATE_RE, TIME_RE } from "@/features/trip";
+import { DATE_RE, isValidPlaceChoice, TIME_RE } from "@/features/trip";
 
 const numOrNull = (x: unknown) =>
   typeof x === "number" && Number.isFinite(x) ? x : null;
@@ -26,13 +27,16 @@ function parsePlace(v: unknown): PlaceChoice | null {
   if (typeof v !== "object" || v === null) return null;
   const p = v as Record<string, unknown>;
   if (typeof p.placeName !== "string" || !p.placeName.trim()) return null;
-  return {
+  const choice: PlaceChoice = {
     placeId: typeof p.placeId === "string" ? p.placeId : null,
     placeName: p.placeName,
     address: typeof p.address === "string" ? p.address : null,
     latitude: numOrNull(p.latitude),
     longitude: numOrNull(p.longitude),
   };
+  // STEP 13 §19 — never trust client coordinates: half a pair, or out of
+  // WGS84 range, is rejected before it ever reaches tripAdminService.
+  return isValidPlaceChoice(choice) ? choice : null;
 }
 
 function parseEdit(v: unknown): ItineraryEdit | "invalid" | null {
@@ -73,6 +77,9 @@ async function readOrder(req: Request): Promise<{ body: Record<string, unknown>;
 function mapError(err: unknown): Response {
   if (err instanceof TripNotFoundError || err instanceof ItineraryItemNotFoundError) {
     return Response.json({ error: err.message }, { status: 404 });
+  }
+  if (err instanceof InvalidItineraryEditError) {
+    return Response.json({ error: err.message }, { status: 400 });
   }
   console.error(
     "[api/trip/itinerary]",

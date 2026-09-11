@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyPlaceChoice,
   applyPlaceChoices,
+  isValidPlaceChoice,
   itineraryMarkers,
   placeChoiceFromCandidate,
   placeChoiceFromNormalized,
@@ -155,5 +156,39 @@ describe("applyPlaceChoices", () => {
   it("an empty choice list returns the itinerary unchanged", () => {
     const items = [item()];
     expect(applyPlaceChoices(items, [])).toEqual(items);
+  });
+
+  it("STEP 13 §19 — skips a choice with an invalid coordinate rather than writing it", () => {
+    const items = [item({ order: 1 })];
+    const out = applyPlaceChoices(items, [
+      { order: 1, choice: { ...choice, latitude: 999, longitude: choice.longitude } },
+    ]);
+    expect(out).toEqual(items); // untouched — bad coordinate never applied
+  });
+});
+
+describe("isValidPlaceChoice (STEP 13 §19)", () => {
+  it("both coordinates present and in range -> valid", () => {
+    expect(isValidPlaceChoice(choice)).toBe(true);
+  });
+
+  it("both coordinates absent -> valid (a place with no known location is a legitimate state)", () => {
+    expect(isValidPlaceChoice({ ...choice, latitude: null, longitude: null })).toBe(true);
+  });
+
+  it("half a coordinate pair -> invalid", () => {
+    expect(isValidPlaceChoice({ ...choice, longitude: null })).toBe(false);
+    expect(isValidPlaceChoice({ ...choice, latitude: null })).toBe(false);
+  });
+
+  it("out-of-range latitude/longitude -> invalid", () => {
+    expect(isValidPlaceChoice({ ...choice, latitude: 91 })).toBe(false);
+    expect(isValidPlaceChoice({ ...choice, latitude: -91 })).toBe(false);
+    expect(isValidPlaceChoice({ ...choice, longitude: 181 })).toBe(false);
+    expect(isValidPlaceChoice({ ...choice, longitude: -181 })).toBe(false);
+  });
+
+  it("empty placeName -> invalid", () => {
+    expect(isValidPlaceChoice({ ...choice, placeName: "   " })).toBe(false);
   });
 });

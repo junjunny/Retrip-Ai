@@ -7,6 +7,8 @@
  */
 import type { Timestamp } from "firebase/firestore";
 
+import type { RoutePolylinePoint } from "./external";
+
 /** External-source domain models (TourAPI / KMA / Kakao) — see types/external.ts. */
 export * from "./external";
 
@@ -61,12 +63,16 @@ export interface Trip {
    * prioritize, set once at trip creation. Feeds Experience Preservation and
    * the Mini Guide (features/miniGuide) — never Group Satisfaction, which
    * stays sourced from individual participant preferences (STEP 5/6).
-   * `null` only for a trip created before STEP 12 (no migration — the field
-   * is simply absent on that Firestore doc). Every trip created from here on
-   * always has one, defaulting to all-5 (neutral) when the creator doesn't
-   * touch it — a deliberate "no strong signal" value, distinct from `null`'s
-   * "this feature didn't exist yet". See features/trip/trip.ts's
-   * `coerceTripPreference`.
+   * `null` when a trip predates STEP 12 (the field is simply absent) OR
+   * (STEP 13) when the creator never opened/used the "이번 여행은 어떤
+   * 여행인가요?" step — the two are indistinguishable and that's intentional,
+   * since both mean the same thing downstream: fall back to the
+   * participant-averaged Experience Profile (STEP 6), and skip the Mini
+   * Guide (nothing to guide with). A vector is stored ONLY when the creator
+   * actually interacted with that step (see components/trip/TripCreateForm's
+   * `tripPreferenceTouched` — even an all-neutral vector they explicitly left
+   * unchanged after opening the step counts as "used"). See
+   * features/trip/trip.ts's `coerceTripPreference`.
    */
   tripPreference: ExperienceProfile | null;
 }
@@ -294,6 +300,33 @@ export interface SlotCandidates {
   /** always true here — keeping the current place is always an option. Reserved for a future STEP to express when it isn't. */
   keepCurrent: true;
   candidates: CandidatePlace[];
+}
+
+/**
+ * One transport mode's real-or-honestly-unavailable info between two points
+ * (STEP 13). Re:Trip's only real provider is Kakao Mobility, and Kakao only
+ * grants 자동차 길찾기 (`/v1/directions`) to a plain REST key — 도보/대중교통
+ * 통합 길찾기 are 제휴(partnership)-only APIs this project has no access to
+ * (see lib/api/kakao/route.ts). So `WALK`/`TRANSIT` are ALWAYS
+ * `available: false` today — never an estimated duration dressed up as real
+ * data. See features/mobility for the pure builder.
+ */
+export type MobilityMode = "WALK" | "DRIVING" | "TRANSIT";
+
+export interface MobilityOption {
+  mode: MobilityMode;
+  available: boolean;
+  durationMinutes: number | null;
+  distanceMeters: number | null;
+  /** Korean label from Kakao's raw traffic_state code ("원활"/"서행"/"지체"/"정체") — DRIVING only when real segment data exists, else null. */
+  trafficLabel: string | null;
+  /** No transit adapter exists (see `MobilityMode` doc) — always null today; kept so a future real transit integration doesn't need a shape change. */
+  transferCount: number | null;
+  /** Real route geometry for the map, or `[]` when unavailable/unknown — never a straight line between the two points. */
+  polyline: RoutePolylinePoint[];
+  source: "kakao-mobility" | null;
+  /** Non-null exactly when `available` is false — why this mode has no data (e.g. no API access, no route found, adapter failure). */
+  failureReason: string | null;
 }
 
 /**

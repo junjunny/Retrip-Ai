@@ -2,23 +2,28 @@
 
 import { useState } from "react";
 
-import type { ItineraryItem } from "@/types";
+import type { ItineraryItem, MobilityMode, MobilityOption, RoutePolylinePoint } from "@/types";
 
 /**
- * Thin client-side mirror of `ReplanPreview`/`ReplanSlotProposal`
- * (features/replan/replan.ts) — just enough to render. No numeric score is
- * used here on purpose: this STEP still ships no score badge, no ranking
- * dashboard (AGENTS-spec §26) — only the STEP 11 natural-language explanation
- * and, for STEP 12, a place detail card built entirely from real data.
+ * Thin client-side mirror of `PublicReplanPreview`/`PublicReplanSlot`
+ * (features/replan/replan.ts's `toPublicReplanPreview`) — the server never
+ * sends the STEP 9 score breakdown or the other candidates it considered, so
+ * there is nothing to mirror for those; this type IS the full wire shape. No
+ * numeric score is used here on purpose — this STEP still ships no score
+ * badge, no ranking dashboard (AGENTS-spec §26) — only the STEP 11
+ * natural-language explanation, a place detail card, and (STEP 13) real
+ * mobility info, all built entirely from real data.
  */
 interface ReplanSlotProposal {
   itineraryOrder: number;
   action: "KEEP" | "REPLACE";
   current: { placeName: string; time: string };
   proposed: { placeName: string; address: string | null; imageUrl: string | null } | null;
+  mobility: MobilityOption[];
 }
 interface ReplanPreview {
   baseItineraryFingerprint: string;
+  baseLocationFingerprint: string;
   generatedAt: string;
   slots: ReplanSlotProposal[];
 }
@@ -44,8 +49,20 @@ interface ReplanEvent {
 }
 
 type Phase = "idle" | "loading" | "preview" | "applying" | "applied" | "error";
+type LatLng = { latitude: number; longitude: number };
+
+const MODE_ICON: Record<MobilityMode, string> = { WALK: "🚶", DRIVING: "🚗", TRANSIT: "🚌" };
+const MODE_LABEL: Record<MobilityMode, string> = { WALK: "도보", DRIVING: "자동차", TRANSIT: "대중교통" };
 
 const fmtEventDate = (yyyymmdd: string) => `${Number(yyyymmdd.slice(4, 6))}/${Number(yyyymmdd.slice(6, 8))}`;
+const fmtDistance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`);
+
+/** the last COMPLETED, coordinate-bearing item — the "출발지" default option (STEP 13 §6, priority 1). */
+function lastCompletedLocation(itinerary: ItineraryItem[]): (LatLng & { placeName: string }) | null {
+  const done = itinerary.filter((i) => i.status === "completed" && i.latitude != null && i.longitude != null);
+  const last = done[done.length - 1];
+  return last ? { latitude: last.latitude!, longitude: last.longitude!, placeName: last.placeName } : null;
+}
 
 /**
  * [Re:Plan] is a single, always-identical CTA — its label/style never
@@ -56,16 +73,31 @@ const fmtEventDate = (yyyymmdd: string) => `${Number(yyyymmdd.slice(4, 6))}/${Nu
  */
 export function ReplanPanel({
   tripId,
+  itinerary,
   onApplied,
+  onPolylinePreview,
 }: {
   tripId: string;
+  /** for the "마지막 완료 장소에서 출발" origin shortcut (STEP 13 §6) — never used for anything else here. */
+  itinerary: ItineraryItem[];
   onApplied: (itinerary: ItineraryItem[]) => void;
+  /** lets the trip-level map show the winning candidate's real route geometry (STEP 13 §11) — `null` clears it. */
+  onPolylinePreview?: (polyline: RoutePolylinePoint[] | null) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<ReplanPreview | null>(null);
   const [explanation, setExplanation] = useState<ReplanExplanation | null>(null);
   const [events, setEvents] = useState<ReplanEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // --- origin (currentLocation), STEP 13 §6/§7 ---
+  const [origin, setOrigin] = useState<(LatLng & { label: string }) | null>(null);
+  const [previewOrigin, setPreviewOrigin] = useState<LatLng | null>(null); // snapshot Apply must reuse
+  const [originSearchOpen, setOriginSearchOpen] = useState(false);
+  const lastCompleted = lastCompletedLocation(itinerary);
+
+  // per-slot selected mobility mode (map polyline follows this), STEP 13 §12
+  const [selectedMode, setSelectedMode] = useState<Record<number, MobilityMode>>({});
 
   async function startReplan() {
     setPhase("loading");
@@ -74,14 +106,22 @@ export function ReplanPanel({
       const res = await fetch(`/api/trip/${tripId}/replan/preview`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ currentLocation: origin }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "failed");
-      setPreview(data.preview as ReplanPreview);
+      const p = data.preview as ReplanPreview;
+      setPreview(p);
+      setPreviewOrigin(origin);
       setExplanation((data.explanation as ReplanExplanation | undefined) ?? null);
       setEvents((data.events as ReplanEvent[] | undefined) ?? []);
       setPhase("preview");
+
+      // show the first REPLACE slot's real driving route on the map, if any.
+      const firstReplace = p.slots.find((s) => s.action === "REPLACE");
+      const driving = firstReplace?.mobility.find((m) => m.mode === "DRIVING" && m.available);
+      onPolylinePreview?.(driving?.polyline ?? null);
+      if (firstReplace) setSelectedMode((m) => ({ ...m, [firstReplace.itineraryOrder]: "DRIVING" }));
     } catch {
       setError("계획을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.");
       setPhase("error");
@@ -94,6 +134,7 @@ export function ReplanPanel({
     setExplanation(null);
     setEvents([]);
     setPhase("idle");
+    onPolylinePreview?.(null);
   }
 
   async function applyPlan() {
@@ -106,7 +147,9 @@ export function ReplanPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           baseItineraryFingerprint: preview.baseItineraryFingerprint,
+          baseLocationFingerprint: preview.baseLocationFingerprint,
           generatedAt: preview.generatedAt,
+          currentLocation: previewOrigin,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -124,10 +167,18 @@ export function ReplanPanel({
       setExplanation(null);
       setEvents([]);
       setPhase("applied");
+      onPolylinePreview?.(null);
     } catch {
       setError("적용하지 못했습니다. 잠시 후 다시 시도해주세요.");
       setPhase("error");
     }
+  }
+
+  function pickMode(itineraryOrder: number, mobility: MobilityOption[], mode: MobilityMode) {
+    const opt = mobility.find((m) => m.mode === mode);
+    if (!opt?.available) return; // unavailable modes are never selectable
+    setSelectedMode((m) => ({ ...m, [itineraryOrder]: mode }));
+    onPolylinePreview?.(opt.polyline.length > 0 ? opt.polyline : null);
   }
 
   const changedSlots = preview?.slots.filter((s) => s.action === "REPLACE") ?? [];
@@ -138,14 +189,25 @@ export function ReplanPanel({
       <h2 className="text-sm font-medium text-zinc-500">Re:Plan</h2>
 
       {phase !== "preview" && (
-        <button
-          type="button"
-          onClick={startReplan}
-          disabled={phase === "loading"}
-          className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 text-sm disabled:opacity-60 dark:border-zinc-700"
-        >
-          {phase === "loading" ? "확인하는 중..." : "Re:Plan"}
-        </button>
+        <>
+          <OriginPicker
+            tripId={tripId}
+            origin={origin}
+            lastCompleted={lastCompleted}
+            open={originSearchOpen}
+            setOpen={setOriginSearchOpen}
+            onPick={setOrigin}
+            onClear={() => setOrigin(null)}
+          />
+          <button
+            type="button"
+            onClick={startReplan}
+            disabled={phase === "loading"}
+            className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 text-sm disabled:opacity-60 dark:border-zinc-700"
+          >
+            {phase === "loading" ? "확인하는 중..." : "Re:Plan"}
+          </button>
+        </>
       )}
 
       {phase === "applied" && (
@@ -225,6 +287,14 @@ export function ReplanPanel({
                         {description && (
                           <p className="text-sm text-zinc-700 dark:text-zinc-300">{description.description}</p>
                         )}
+
+                        <MobilitySection
+                          itineraryOrder={s.itineraryOrder}
+                          mobility={s.mobility}
+                          selected={selectedMode[s.itineraryOrder] ?? "DRIVING"}
+                          onSelect={(mode) => pickMode(s.itineraryOrder, s.mobility, mode)}
+                        />
+
                         {event && (
                           <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                             ✨ 지금 진행 중인 행사 · {fmtEventDate(event.startDate)} ~ {fmtEventDate(event.endDate)}
@@ -270,6 +340,207 @@ export function ReplanPanel({
             </button>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "이동 방법" — always renders all three modes (STEP 13 §5/§10); an
+ * unavailable one shows its honest reason instead of a number, and can't be
+ * selected (§12). Only ever reflects data the server already fetched for
+ * scoring — never triggers a new Kakao Mobility call itself.
+ */
+function MobilitySection({
+  mobility,
+  selected,
+  onSelect,
+}: {
+  itineraryOrder: number;
+  mobility: MobilityOption[];
+  selected: MobilityMode;
+  onSelect: (mode: MobilityMode) => void;
+}) {
+  if (mobility.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg bg-zinc-50 p-2.5 dark:bg-zinc-800/60">
+      <p className="text-xs font-medium text-zinc-500">이동 정보</p>
+      <div className="flex flex-col gap-1">
+        {mobility.map((m) => (
+          <button
+            key={m.mode}
+            type="button"
+            disabled={!m.available}
+            onClick={() => onSelect(m.mode)}
+            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
+              !m.available
+                ? "cursor-not-allowed text-zinc-400"
+                : selected === m.mode
+                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <span>{MODE_ICON[m.mode]}</span>
+            <span className="w-14 shrink-0">{MODE_LABEL[m.mode]}</span>
+            {m.available ? (
+              <span className="tabular-nums">
+                {m.durationMinutes}분 · {fmtDistance(m.distanceMeters!)}
+                {m.trafficLabel ? ` · ${m.trafficLabel}` : ""}
+                {m.transferCount != null ? ` · ${m.transferCount}회 환승` : ""}
+              </span>
+            ) : (
+              <span className="text-xs">{m.failureReason ?? "현재 제공 불가"}</span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** "현재 어디에서 출발하시나요?" (STEP 13 §6, priority 1) — explicit, one-shot, never persisted, never auto-tracked. */
+function OriginPicker({
+  tripId,
+  origin,
+  lastCompleted,
+  open,
+  setOpen,
+  onPick,
+  onClear,
+}: {
+  tripId: string;
+  origin: (LatLng & { label: string }) | null;
+  lastCompleted: (LatLng & { placeName: string }) | null;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  onPick: (loc: LatLng & { label: string }) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+      <p className="text-xs text-zinc-500">
+        출발지 <span className="text-zinc-400">(선택 — 알려주시면 실제 이동 정보를 확인할 수 있어요)</span>
+      </p>
+      <p className="text-zinc-700 dark:text-zinc-300">{origin ? origin.label : "선택 안 함"}</p>
+      <div className="flex flex-wrap gap-2">
+        {lastCompleted && (
+          <button
+            type="button"
+            onClick={() => onPick({ ...lastCompleted, label: `마지막 완료 장소 · ${lastCompleted.placeName}` })}
+            className="min-h-9 rounded-lg border border-zinc-300 px-3 text-xs dark:border-zinc-700"
+          >
+            마지막 완료 장소에서 출발
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="min-h-9 rounded-lg border border-zinc-300 px-3 text-xs dark:border-zinc-700"
+        >
+          직접 장소 선택
+        </button>
+        {origin && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="min-h-9 rounded-lg border border-zinc-300 px-3 text-xs text-zinc-500 dark:border-zinc-700"
+          >
+            선택 해제
+          </button>
+        )}
+      </div>
+      {open && (
+        <OriginSearch
+          tripId={tripId}
+          onPick={(loc, label) => {
+            onPick({ ...loc, label });
+            setOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface ResolvedCandidate {
+  key: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+function OriginSearch({
+  tripId,
+  onPick,
+}: {
+  tripId: string;
+  onPick: (loc: LatLng, label: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [results, setResults] = useState<ResolvedCandidate[]>([]);
+
+  async function search() {
+    if (!query.trim()) return;
+    setState("loading");
+    try {
+      const res = await fetch(`/api/trip/${tripId}/resolve?q=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "failed");
+      const place = data.place;
+      const opts: ResolvedCandidate[] = [];
+      if (place.verificationStatus !== "unresolved" && place.latitude != null) {
+        opts.push({ key: "primary", name: place.placeName, address: place.roadAddress ?? place.address, latitude: place.latitude, longitude: place.longitude });
+      }
+      for (const c of place.candidates ?? []) {
+        if (c.latitude != null && c.longitude != null) {
+          opts.push({ key: `${opts.length}`, name: c.name, address: c.address, latitude: c.latitude, longitude: c.longitude });
+        }
+      }
+      setResults(opts);
+      setState("idle");
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void search();
+        }}
+      >
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="출발할 장소 이름"
+          className="min-h-9 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-200"
+        />
+        <button type="submit" className="min-h-9 shrink-0 rounded-lg border border-zinc-300 px-3 text-xs dark:border-zinc-700">
+          검색
+        </button>
+      </form>
+      {state === "loading" && <p className="text-xs text-zinc-500">찾는 중...</p>}
+      {state === "error" && <p className="text-xs text-red-600 dark:text-red-400">찾지 못했어요. 다시 검색해주세요.</p>}
+      {results.length > 0 && (
+        <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+          {results.map((r) => (
+            <li key={r.key}>
+              <button
+                type="button"
+                onClick={() => onPick({ latitude: r.latitude, longitude: r.longitude }, r.name)}
+                className="flex w-full flex-col items-start rounded-md border border-zinc-200 px-2 py-1.5 text-left text-xs dark:border-zinc-700"
+              >
+                <span className="font-medium">{r.name}</span>
+                {r.address && <span className="text-zinc-500">{r.address}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

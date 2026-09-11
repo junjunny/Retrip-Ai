@@ -75,6 +75,7 @@ d("Re:Plan (live)", () => {
     const preview = await generateReplanPreview(tripId, { now });
     const result = await applyReplanPreview(tripId, {
       baseItineraryFingerprint: preview.baseItineraryFingerprint,
+      baseLocationFingerprint: preview.baseLocationFingerprint,
       generatedAt: preview.generatedAt,
     });
     const fixed = result.itinerary.find((i) => i.order === 2)!;
@@ -105,6 +106,7 @@ d("Re:Plan (live)", () => {
     await expect(
       applyReplanPreview(tripId, {
         baseItineraryFingerprint: preview.baseItineraryFingerprint, // stale — from before the edit
+        baseLocationFingerprint: preview.baseLocationFingerprint,
         generatedAt: preview.generatedAt,
       }),
     ).rejects.toBeInstanceOf(ReplanStaleError);
@@ -120,13 +122,21 @@ d("Re:Plan (live)", () => {
   it("F. non-existent trip is rejected for both preview and apply", async () => {
     await expect(generateReplanPreview("NOSUCHTRIP10")).rejects.toBeInstanceOf(TripNotFoundError);
     await expect(
-      applyReplanPreview("NOSUCHTRIP10", { baseItineraryFingerprint: "x", generatedAt: new Date().toISOString() }),
+      applyReplanPreview("NOSUCHTRIP10", {
+        baseItineraryFingerprint: "x",
+        baseLocationFingerprint: "none",
+        generatedAt: new Date().toISOString(),
+      }),
     ).rejects.toBeInstanceOf(TripNotFoundError);
   });
 
   it("F. an obviously wrong fingerprint is rejected even against an untouched trip", async () => {
     await expect(
-      applyReplanPreview(tripId, { baseItineraryFingerprint: "00000000", generatedAt: new Date().toISOString() }),
+      applyReplanPreview(tripId, {
+        baseItineraryFingerprint: "00000000",
+        baseLocationFingerprint: "none",
+        generatedAt: new Date().toISOString(),
+      }),
     ).rejects.toBeInstanceOf(ReplanStaleError);
   });
 
@@ -151,6 +161,47 @@ d("Re:Plan (live)", () => {
     // whatever the explanation says, it must still pass the same grounding gate used elsewhere
     for (const pd of explanation.placeDescriptions) {
       expect(preview.slots.some((s) => s.itineraryOrder === pd.itineraryOrder && s.action === "REPLACE")).toBe(true);
+    }
+
+    await resetTrip();
+  });
+
+  it("STEP 13 — a real REPLACE with a currentLocation carries real driving mobility data, and honestly-unavailable walk/transit", async () => {
+    await resetTrip();
+    await submitParticipant(tripId, {
+      nickname: "자연러버2",
+      preferences: { ...defaultPreferenceVector(), nature: 10, photo: 10, relax: 10, culture: 1, food: 1, cafe: 1, shopping: 1, activity: 1 },
+      pace: "normal",
+      indoorOutdoor: "outdoor",
+    });
+
+    const currentLocation = { latitude: 35.1585, longitude: 129.1599 }; // 해운대
+    const preview = await generateReplanPreview(tripId, { now, currentLocation });
+    expect(preview.baseLocationFingerprint).toBe("35.1585,129.1599");
+
+    const replaced = preview.slots.find((s) => s.action === "REPLACE");
+    expect(replaced).toBeDefined();
+    const mobility = replaced!.score.mobility!;
+    expect(mobility.map((m) => m.mode)).toEqual(["WALK", "DRIVING", "TRANSIT"]);
+
+    const walk = mobility.find((m) => m.mode === "WALK")!;
+    const transit = mobility.find((m) => m.mode === "TRANSIT")!;
+    expect(walk.available).toBe(false);
+    expect(walk.failureReason).toBeTruthy();
+    expect(transit.available).toBe(false);
+    expect(transit.failureReason).toBeTruthy();
+
+    const driving = mobility.find((m) => m.mode === "DRIVING")!;
+    if (driving.available) {
+      // real candidate had confirmable coordinates -> a real Kakao Mobility route
+      expect(driving.durationMinutes).toBeGreaterThan(0);
+      expect(driving.distanceMeters).toBeGreaterThan(0);
+      expect(driving.source).toBe("kakao-mobility");
+      expect(Array.isArray(driving.polyline)).toBe(true);
+    } else {
+      // still honest, never a guessed number, if this particular candidate had no usable coordinates
+      expect(driving.durationMinutes).toBeNull();
+      expect(driving.failureReason).toBeTruthy();
     }
 
     await resetTrip();

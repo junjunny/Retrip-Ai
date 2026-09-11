@@ -12,9 +12,13 @@ export {
   MIN_IMPROVEMENT_TO_REPLACE,
   buildReplanPreview,
   computeItineraryFingerprint,
+  computeLocationFingerprint,
   decideSlotAction,
+  toPublicReplanPreview,
 } from "./replan";
 export type {
+  PublicReplanPreview,
+  PublicReplanSlot,
   ReplanPreview,
   ReplanPreviewInput,
   ReplanSlotAction,

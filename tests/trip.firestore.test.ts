@@ -150,12 +150,10 @@ d("createTrip + getTrip", () => {
     expect(raw.createdAt instanceof Timestamp).toBe(true);
   });
 
-  it("STEP 12 — a new trip always gets a full tripPreference vector, all-neutral(5) when the creator never touches it", async () => {
+  it("STEP 13 — an unset tripPreference (creator never used the step) stores null, not a fabricated all-neutral vector", async () => {
     const id = await makeTrip();
     const trip = await getTrip(id);
-    expect(trip!.tripPreference).toEqual({
-      nature: 5, culture: 5, food: 5, cafe: 5, shopping: 5, activity: 5, photo: 5, relax: 5,
-    });
+    expect(trip!.tripPreference).toBeNull();
   });
 
   it("STEP 12 — an explicit tripPreference round-trips exactly, separate from any participant's own preference", async () => {

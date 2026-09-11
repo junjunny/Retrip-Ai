@@ -13,7 +13,7 @@
  * assembles the result.
  */
 import type { RankedOption } from "@/features/scoring";
-import type { ItineraryItem, PlaceSource, PlaceVerificationStatus, ScheduleType } from "@/types";
+import type { ItineraryItem, MobilityOption, PlaceSource, PlaceVerificationStatus, ScheduleType } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -66,6 +66,21 @@ export function computeItineraryFingerprint(itinerary: readonly ItineraryItem[])
 }
 
 // ---------------------------------------------------------------------------
+// Location fingerprint (STEP 13) — binds `currentLocation` into the
+// Preview/Apply receipt alongside the itinerary fingerprint, so a client
+// can't apply a preview computed for one origin against a since-changed one
+// (mobility/scoring may honestly differ). Rounded to ~11m precision — enough
+// to detect "meaningfully moved", never meant as a precise location compare.
+// ---------------------------------------------------------------------------
+
+export function computeLocationFingerprint(
+  location: { latitude: number; longitude: number } | null,
+): string {
+  if (!location) return "none";
+  return `${location.latitude.toFixed(4)},${location.longitude.toFixed(4)}`;
+}
+
+// ---------------------------------------------------------------------------
 // Proposal types
 // ---------------------------------------------------------------------------
 
@@ -106,6 +121,8 @@ export interface ReplanPreview {
   generatedAt: string;
   /** `computeItineraryFingerprint` of the itinerary this preview was built against. Apply rejects if the live itinerary's fingerprint differs. */
   baseItineraryFingerprint: string;
+  /** `computeLocationFingerprint` of the `currentLocation` this preview was built against (STEP 13). Apply rejects if the origin it's given doesn't match — mobility/scoring were computed for a specific origin. */
+  baseLocationFingerprint: string;
   slots: ReplanSlotProposal[];
 }
 
@@ -194,6 +211,8 @@ export interface ReplanPreviewInput {
   /** the FULL itinerary (not just eligible slots) — used for the fingerprint and to look up each slot's current data. */
   itinerary: readonly ItineraryItem[];
   slotRankings: readonly SlotRankingInput[];
+  /** same value passed to scoring/mobility for this run (STEP 13) — recorded as `baseLocationFingerprint`, never re-derived. */
+  currentLocation?: { latitude: number; longitude: number } | null;
 }
 
 /**
@@ -224,6 +243,55 @@ export function buildReplanPreview(input: ReplanPreviewInput): ReplanPreview {
     tripId: input.tripId,
     generatedAt: input.generatedAt,
     baseItineraryFingerprint: computeItineraryFingerprint(input.itinerary),
+    baseLocationFingerprint: computeLocationFingerprint(input.currentLocation ?? null),
     slots,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public (wire) shape (STEP 13) — what the client actually receives.
+// ---------------------------------------------------------------------------
+
+/**
+ * A slot as the CLIENT sees it — current/proposed place data + the real
+ * mobility info for the winning option, but never the STEP 9 score breakdown
+ * (groupSatisfaction, experiencePreservation, per-participant scores, every
+ * other candidate considered) — that stays server-side (AGENTS-spec §26: no
+ * score dashboard, and per-participant numbers are more sensitive than a
+ * single aggregate). `mobility` is `[]` when it was never computed for this
+ * option (see `RankedOption.mobility`'s doc comment) or when the slot is
+ * KEEP (nothing to travel to — see `ReplanPanel`, which only renders a
+ * mobility card for REPLACE).
+ */
+export interface PublicReplanSlot {
+  itineraryOrder: number;
+  action: ReplanSlotAction;
+  current: ReplanSlotProposal["current"];
+  proposed: ReplanSlotProposal["proposed"];
+  mobility: MobilityOption[];
+}
+
+export interface PublicReplanPreview {
+  tripId: string;
+  generatedAt: string;
+  baseItineraryFingerprint: string;
+  baseLocationFingerprint: string;
+  slots: PublicReplanSlot[];
+}
+
+/** Strips server-internal scoring data before a `ReplanPreview` goes over the wire. Pure. */
+export function toPublicReplanPreview(preview: ReplanPreview): PublicReplanPreview {
+  return {
+    tripId: preview.tripId,
+    generatedAt: preview.generatedAt,
+    baseItineraryFingerprint: preview.baseItineraryFingerprint,
+    baseLocationFingerprint: preview.baseLocationFingerprint,
+    slots: preview.slots.map((s) => ({
+      itineraryOrder: s.itineraryOrder,
+      action: s.action,
+      current: s.current,
+      proposed: s.proposed,
+      mobility: s.score.mobility ?? [],
+    })),
   };
 }

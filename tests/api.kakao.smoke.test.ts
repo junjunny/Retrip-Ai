@@ -50,5 +50,14 @@ d("Kakao Mobility", () => {
     expect(route.durationSeconds).toBeGreaterThan(0);
     expect(Array.isArray(route.trafficSegments)).toBe(true);
     expect(route.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // STEP 13 — real route geometry for the map polyline, never synthesized
+    expect(Array.isArray(route.polyline)).toBe(true);
+    expect(route.polyline.length).toBeGreaterThan(0);
+    for (const pt of route.polyline) {
+      expect(pt.latitude).toBeGreaterThan(30);
+      expect(pt.latitude).toBeLessThan(40);
+      expect(pt.longitude).toBeGreaterThan(120);
+      expect(pt.longitude).toBeLessThan(135);
+    }
   });
 });

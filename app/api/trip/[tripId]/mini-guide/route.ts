@@ -11,12 +11,20 @@
  */
 import { generateMiniGuide } from "@/features/miniGuide/miniGuideService";
 import { getTripPreference } from "@/features/trip/tripAdminService";
+import { allowRequest } from "@/lib/rateLimit";
+
+/** One LLM call per hit — a refresh-spamming user just gets `{ guide: null }` back (display-only, never a broken-looking error). */
+const MINI_GUIDE_COOLDOWN_MS = 15_000;
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ tripId: string }> },
 ) {
   const { tripId } = await params;
+
+  if (!allowRequest(`mini-guide:${tripId}`, MINI_GUIDE_COOLDOWN_MS)) {
+    return Response.json({ guide: null });
+  }
 
   try {
     const tripPreference = await getTripPreference(tripId);

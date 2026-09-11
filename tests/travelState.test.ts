@@ -64,6 +64,7 @@ const route = (over: Partial<RouteData> = {}): RouteData => ({
   tollFare: null,
   priority: "RECOMMEND",
   trafficSegments: [],
+  polyline: [],
   fetchedAt: "2026-10-01T01:00:00.000Z",
   provider: "kakao-mobility",
   ...over,

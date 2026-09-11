@@ -9,6 +9,8 @@ import { createTrip, getTrip } from "@/features/trip";
 import {
   deleteItineraryItem,
   editItineraryItem,
+  getTripPreference,
+  InvalidItineraryEditError,
 } from "@/features/trip/tripAdminService";
 
 const configured = Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
@@ -130,5 +132,49 @@ d("STEP 4 — edit / delete via admin service", () => {
     await expect(deleteItineraryItem(id, 99)).rejects.toMatchObject({
       name: "ItineraryItemNotFoundError",
     });
+  });
+
+  it("STEP 13 §19 — a date outside the trip's own [startDate, endDate] is rejected server-side, never relying on the UI's date picker", async () => {
+    const id = await seed(); // trip runs 2026-09-18 ~ 2026-09-19
+    await expect(editItineraryItem(id, 1, { date: "2026-09-25" })).rejects.toBeInstanceOf(
+      InvalidItineraryEditError,
+    );
+    // the item is untouched
+    const trip = await getTrip(id);
+    expect(trip!.itinerary.find((i) => i.placeName === "A")?.date).toBe("2026-09-18");
+  });
+
+  it("STEP 13 §19 — a date inside the trip's range still works", async () => {
+    const id = await seed();
+    const items = await editItineraryItem(id, 1, { date: "2026-09-19" });
+    expect(items.find((i) => i.placeName === "A")?.date).toBe("2026-09-19");
+  });
+});
+
+d("STEP 13 — Mini Guide gate (getTripPreference)", () => {
+  it("a trip created without touching Trip Preference -> getTripPreference is null, so GET /mini-guide returns { guide: null } without ever calling the LLM", async () => {
+    const id = await createTrip({
+      title: "STEP13_ITEST no-pref",
+      destination: "부산",
+      startDate: "2026-09-18",
+      endDate: "2026-09-18",
+      itinerary: [],
+    });
+    created.push(id);
+    expect(await getTripPreference(id)).toBeNull();
+  });
+
+  it("a trip created WITH an explicit Trip Preference -> getTripPreference returns it, so the Mini Guide route has something to guide", async () => {
+    const tripPreference = { nature: 8, culture: 3, food: 3, cafe: 3, shopping: 3, activity: 3, photo: 3, relax: 3 };
+    const id = await createTrip({
+      title: "STEP13_ITEST with-pref",
+      destination: "부산",
+      startDate: "2026-09-18",
+      endDate: "2026-09-18",
+      itinerary: [],
+      tripPreference,
+    });
+    created.push(id);
+    expect(await getTripPreference(id)).toEqual(tripPreference);
   });
 });

@@ -7,7 +7,7 @@ import { PlaceConfirmSheet } from "@/components/trip/PlaceConfirmSheet";
 import { TripMap } from "@/components/trip/TripMap";
 import { itineraryMarkers } from "@/features/trip";
 import type { ItineraryEdit, PlaceChoice } from "@/features/trip";
-import type { ItineraryItem, Trip } from "@/types";
+import type { ItineraryItem, RoutePolylinePoint, Trip } from "@/types";
 
 const fmtDate = (d: string) => d.split("-").join(".");
 
@@ -21,7 +21,14 @@ type Sheet =
  * markers are derived from it. Confirm / edit place / edit schedule / delete all
  * PATCH-or-DELETE the server, then update `items` — list and map stay in sync.
  */
-export function ItineraryPlaces({ trip }: { trip: Trip }) {
+export function ItineraryPlaces({
+  trip,
+  overlayPolyline,
+}: {
+  trip: Trip;
+  /** a Re:Plan candidate's real route geometry to overlay on the map (STEP 13 §11) — see ReplanPanel's `onPolylinePreview`. */
+  overlayPolyline?: RoutePolylinePoint[] | null;
+}) {
   const [items, setItems] = useState<ItineraryItem[]>(trip.itinerary ?? []);
   const [activeOrder, setActiveOrder] = useState<number | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -66,7 +73,7 @@ export function ItineraryPlaces({ trip }: { trip: Trip }) {
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <TripMap markers={[]} activeOrder={null} onSelectOrder={() => {}} />
+        <TripMap markers={[]} activeOrder={null} onSelectOrder={() => {}} routePolyline={overlayPolyline} />
         <p className="text-sm text-zinc-500">등록된 일정이 없습니다.</p>
       </div>
     );
@@ -74,7 +81,7 @@ export function ItineraryPlaces({ trip }: { trip: Trip }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <TripMap markers={markers} activeOrder={activeOrder} onSelectOrder={setActiveOrder} />
+      <TripMap markers={markers} activeOrder={activeOrder} onSelectOrder={setActiveOrder} routePolyline={overlayPolyline} />
 
       <ol className="flex flex-col gap-2">
         {items.map((item) => {

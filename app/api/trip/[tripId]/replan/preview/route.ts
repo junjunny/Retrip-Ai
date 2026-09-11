@@ -17,8 +17,13 @@
  * client; score numbers (situationFitness etc.) are deliberately NOT
  * forwarded over the wire at all (the UI never shows them — AGENTS-spec §26).
  */
+import { toPublicReplanPreview } from "@/features/replan";
 import { generateReplanPreviewWithExplanation } from "@/features/replan/replanService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
+import { allowRequest } from "@/lib/rateLimit";
+
+/** A Preview run costs real money (external APIs + one LLM call) — block rapid repeats of the same trip. */
+const PREVIEW_COOLDOWN_MS = 8_000;
 
 function parseCurrentLocation(v: unknown): { latitude: number; longitude: number } | null {
   if (typeof v !== "object" || v === null) return null;
@@ -37,6 +42,13 @@ export async function POST(
 ) {
   const { tripId } = await params;
 
+  if (!allowRequest(`replan-preview:${tripId}`, PREVIEW_COOLDOWN_MS)) {
+    return Response.json(
+      { error: "너무 빠르게 다시 요청했어요. 잠시 후 다시 시도해주세요." },
+      { status: 429 },
+    );
+  }
+
   let body: Record<string, unknown> = {};
   try {
     const text = await req.text();
@@ -51,7 +63,7 @@ export async function POST(
     const events = facts.slots
       .filter((s) => s.eventOngoing)
       .map((s) => ({ itineraryOrder: s.itineraryOrder, startDate: s.eventStartDate!, endDate: s.eventEndDate! }));
-    return Response.json({ preview, explanation, events });
+    return Response.json({ preview: toPublicReplanPreview(preview), explanation, events });
   } catch (err) {
     if (err instanceof TripNotFoundError) {
       return Response.json({ error: err.message }, { status: 404 });
