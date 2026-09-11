@@ -232,7 +232,7 @@ export function ReplanPanel({
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {phase === "preview" && preview && (
-        <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-4">
+        <div className="flex flex-col gap-4">
           {preview.slots.length === 0 ? (
             <p className="text-sm text-ink-muted">지금 다시 계획할 수 있는 일정이 없어요.</p>
           ) : (
@@ -296,12 +296,12 @@ export function ReplanPanel({
                       )}
 
                       <div className="flex flex-col gap-2.5 p-3">
-                        <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                          <span className="tabular-nums text-ink-muted">{s.current.time}</span>
-                          <span className="text-ink-muted">{s.current.placeName}</span>
-                          <ArrowRight className="size-3.5 shrink-0 text-ink-muted" aria-hidden />
-                          <span className="font-medium text-ink">{s.proposed?.placeName}</span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+                          <span className="tabular-nums">{s.current.time}</span>
+                          <span className="line-through decoration-ink-muted/50">{s.current.placeName}</span>
+                          <ArrowRight className="size-3 shrink-0" aria-hidden />
                         </div>
+                        <p className="text-xl leading-tight font-semibold text-ink">{s.proposed?.placeName}</p>
                         {s.proposed?.address && (
                           <p className="flex items-center gap-1 text-xs text-ink-muted">
                             <MapPin className="size-3 shrink-0" aria-hidden />

@@ -11,6 +11,8 @@ import type { ItineraryEdit, PlaceChoice } from "@/features/trip";
 import type { ItineraryItem, RoutePolylinePoint, Trip } from "@/types";
 
 const fmtDate = (d: string) => d.split("-").join(".");
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const dayLabel = (d: string) => WEEKDAYS[new Date(`${d}T00:00:00Z`).getUTCDay()] ?? "";
 
 type Sheet =
   | { kind: "place"; order: number }
@@ -25,6 +27,9 @@ type Sheet =
  * Rows are connected with a plain vertical line (STEP 14 §8) — a visual flow
  * cue only, never a fabricated travel time between them (no route data is
  * computed for the base itinerary; only Re:Plan candidates get a real one).
+ * A multi-day trip gets Day N tabs (STEP 15 §6/§8) — the map always mirrors
+ * whichever day's items the list currently shows, so marker numbers and the
+ * visible sequence never disagree.
  */
 export function ItineraryPlaces({
   trip,
@@ -39,8 +44,13 @@ export function ItineraryPlaces({
   const [sheet, setSheet] = useState<Sheet>(null);
   const [busyOrder, setBusyOrder] = useState<number | null>(null);
 
-  const markers = useMemo(() => itineraryMarkers(items), [items]);
-  const multiDay = useMemo(() => new Set(items.map((i) => i.date)).size > 1, [items]);
+  const days = useMemo(() => [...new Set(items.map((i) => i.date))].sort(), [items]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const multiDay = days.length > 1;
+  const activeDay = multiDay ? (selectedDay && days.includes(selectedDay) ? selectedDay : days[0]) : null;
+  const visibleItems = activeDay ? items.filter((i) => i.date === activeDay) : items;
+
+  const markers = useMemo(() => itineraryMarkers(visibleItems), [visibleItems]);
   const sheetItem = sheet ? (items.find((i) => i.order === sheet.order) ?? null) : null;
 
   async function send(order: number, init: RequestInit) {
@@ -86,15 +96,35 @@ export function ItineraryPlaces({
 
   return (
     <div className="flex flex-col gap-4">
+      {multiDay && (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          {days.map((d, i) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => {
+                setSelectedDay(d);
+                setActiveOrder(null);
+              }}
+              className={`min-h-11 shrink-0 rounded-full border px-3.5 text-sm transition-colors ${
+                d === activeDay ? "border-brand bg-brand text-brand-ink" : "border-line text-ink-muted"
+              }`}
+            >
+              Day {i + 1} · {fmtDate(d).slice(5)} ({dayLabel(d)})
+            </button>
+          ))}
+        </div>
+      )}
+
       <TripMap markers={markers} activeOrder={activeOrder} onSelectOrder={setActiveOrder} routePolyline={overlayPolyline} />
 
       <ol className="flex flex-col">
-        {items.map((item, i) => {
+        {visibleItems.map((item, i) => {
           const active = item.order === activeOrder;
           const hasCoords = item.latitude != null && item.longitude != null;
-          const isLast = i === items.length - 1;
+          const isLast = i === visibleItems.length - 1;
           return (
-            <li key={item.order} className="relative flex gap-3 pb-3">
+            <li key={item.order} className="relative flex gap-3 pb-4">
               {/* order badge + connecting line (visual flow only — no fabricated time) */}
               <div className="flex flex-col items-center">
                 <span
@@ -112,8 +142,8 @@ export function ItineraryPlaces({
               </div>
 
               <div
-                className={`min-w-0 flex-1 rounded-xl border p-3 ${
-                  active ? "border-brand bg-brand/5" : "border-line bg-surface"
+                className={`min-w-0 flex-1 rounded-xl p-3 transition-colors ${
+                  active ? "bg-brand/5" : ""
                 }`}
               >
                 <button
@@ -123,12 +153,12 @@ export function ItineraryPlaces({
                   }
                   className="flex w-full flex-col items-start gap-0.5 text-left"
                 >
-                  <span className="flex flex-wrap items-center gap-x-2 text-sm">
-                    <span className="tabular-nums text-ink-muted">
-                      {multiDay ? `${fmtDate(item.date)} ` : ""}
-                      {item.time}
-                    </span>
-                    <span className="font-medium text-ink">{item.placeName}</span>
+                  <span className="tabular-nums text-xs text-ink-muted">
+                    {!multiDay ? `${fmtDate(item.date)} · ` : ""}
+                    {item.time}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-x-2">
+                    <span className="text-lg leading-tight font-semibold text-ink">{item.placeName}</span>
                     {item.scheduleType === "fixed" && (
                       <span className="rounded-full bg-surface-alt px-2 py-0.5 text-xs text-ink-muted">
                         고정

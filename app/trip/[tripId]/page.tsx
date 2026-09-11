@@ -105,19 +105,18 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   };
 
   return (
-    <article className="flex flex-col gap-6">
+    <article className="flex flex-col gap-8">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{trip.title}</h1>
-        <p className="text-ink-muted">{trip.destination}</p>
-        <p className="text-sm text-ink-muted">
-          {fmtDate(trip.startDate)} ~ {fmtDate(trip.endDate)}
+        <p className="text-sm text-ink-muted">{trip.title}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">{trip.destination}</h1>
+        <p className="text-sm tabular-nums text-ink-muted">
+          {fmtDate(trip.startDate)} — {fmtDate(trip.endDate)}
         </p>
       </header>
 
       <MiniGuide tripId={trip.tripId} />
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-ink-muted">여행 일정</h2>
+      <section className="flex flex-col gap-3">
         <ItineraryPlaces key={itineraryVersion} trip={trip} overlayPolyline={previewPolyline} />
       </section>
 

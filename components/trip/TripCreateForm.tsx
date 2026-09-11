@@ -2,7 +2,7 @@
 
 import { AlertCircle, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { PreferenceScale } from "@/components/shared/PreferenceScale";
 import {
@@ -37,6 +37,11 @@ function dateTab(d: string): string {
   const [, m, day] = d.split("-");
   const wd = WEEKDAYS[new Date(`${d}T00:00:00Z`).getUTCDay()] ?? "";
   return `${Number(m)}/${Number(day)} ${wd}`;
+}
+
+/** A section heading in the same "question" voice throughout the form (STEP 15). */
+function StepHeading({ children }: { children: ReactNode }) {
+  return <h2 className="text-lg font-medium text-ink">{children}</h2>;
 }
 
 export function TripCreateForm() {
@@ -119,56 +124,60 @@ export function TripCreateForm() {
 
   return (
     <form
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-10"
       onSubmit={(e) => {
         e.preventDefault();
         void handleSubmit();
       }}
     >
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-ink">여행 제목</span>
+      <div className="flex flex-col gap-4">
+        <StepHeading>어디로 떠나시나요?</StepHeading>
         <input
-          className={fieldClass}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="부산 2박 3일 여행"
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-ink">여행 지역</span>
-        <input
-          className={fieldClass}
+          className={`${fieldClass} text-lg`}
           value={destination}
           onChange={(e) => setDestination(e.target.value)}
           placeholder="부산"
         />
-      </label>
-
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <label className="flex flex-1 flex-col gap-1.5">
-          <span className="text-sm font-medium text-ink">출발일</span>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm text-ink-muted">여행 이름</span>
           <input
-            type="date"
             className={fieldClass}
-            value={startDate}
-            onChange={(e) => onStart(e.target.value)}
-          />
-        </label>
-        <label className="flex flex-1 flex-col gap-1.5">
-          <span className="text-sm font-medium text-ink">귀가일</span>
-          <input
-            type="date"
-            className={fieldClass}
-            value={endDate}
-            min={startDate || undefined}
-            onChange={(e) => onEnd(e.target.value)}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="부산 2박 3일 여행"
           />
         </label>
       </div>
 
-      <fieldset className="flex min-w-0 flex-col gap-3">
-        <legend className="text-sm font-medium text-ink">여행 일정</legend>
+      <div className="flex flex-col gap-4">
+        <StepHeading>언제 떠나시나요?</StepHeading>
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <label className="flex flex-1 flex-col gap-1.5">
+            <span className="text-sm text-ink-muted">출발일</span>
+            <input
+              type="date"
+              className={fieldClass}
+              value={startDate}
+              onChange={(e) => onStart(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5">
+            <span className="text-sm text-ink-muted">귀가일</span>
+            <input
+              type="date"
+              className={fieldClass}
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => onEnd(e.target.value)}
+            />
+          </label>
+        </div>
+      </div>
+
+      <fieldset className="flex min-w-0 flex-col gap-4">
+        <legend className="w-full">
+          <StepHeading>무엇을 할까요?</StepHeading>
+        </legend>
 
         {days.length === 0 ? (
           <p className="text-sm text-ink-muted">
@@ -201,41 +210,40 @@ export function TripCreateForm() {
               </p>
             )}
 
-            {dayRows.map((row) => (
-              <div
-                key={row.key}
-                className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-3"
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    aria-label="시간"
-                    className={`${fieldBase} w-[8.5rem] shrink-0 px-2`}
-                    value={row.time}
-                    onChange={(e) => updateRow(row.key, { time: e.target.value })}
+            <div className="flex flex-col divide-y divide-line">
+              {dayRows.map((row) => (
+                <div key={row.key} className="flex flex-col gap-2 py-3 first:pt-0">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      aria-label="시간"
+                      className={`${fieldBase} w-[8.5rem] shrink-0 px-2`}
+                      value={row.time}
+                      onChange={(e) => updateRow(row.key, { time: e.target.value })}
+                    />
+                    <input
+                      aria-label="장소명"
+                      className={`${fieldBase} min-w-0 flex-1`}
+                      value={row.placeName}
+                      onChange={(e) => updateRow(row.key, { placeName: e.target.value })}
+                      placeholder="해운대해수욕장"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.key)}
+                      aria-label="일정 삭제"
+                      className="flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-line px-3 text-ink-muted transition-colors hover:text-danger"
+                    >
+                      <X className="size-4" aria-hidden />
+                    </button>
+                  </div>
+                  <ScheduleTypeToggle
+                    value={row.scheduleType ?? "flexible"}
+                    onChange={(v) => updateRow(row.key, { scheduleType: v })}
                   />
-                  <input
-                    aria-label="장소명"
-                    className={`${fieldBase} min-w-0 flex-1`}
-                    value={row.placeName}
-                    onChange={(e) => updateRow(row.key, { placeName: e.target.value })}
-                    placeholder="해운대해수욕장"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeRow(row.key)}
-                    aria-label="일정 삭제"
-                    className="flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-line px-3 text-ink-muted transition-colors hover:text-danger"
-                  >
-                    <X className="size-4" aria-hidden />
-                  </button>
                 </div>
-                <ScheduleTypeToggle
-                  value={row.scheduleType ?? "flexible"}
-                  onChange={(v) => updateRow(row.key, { scheduleType: v })}
-                />
-              </div>
-            ))}
+              ))}
+            </div>
 
             <button
               type="button"
@@ -249,12 +257,12 @@ export function TripCreateForm() {
         )}
       </fieldset>
 
-      <details className="group rounded-xl border border-line bg-surface-alt p-3.5 open:pb-4">
-        <summary className="flex cursor-pointer list-none items-baseline justify-between gap-2 text-sm font-medium text-ink marker:content-none">
-          이번 여행은 어떤 여행인가요?
-          <span className="shrink-0 text-xs font-normal text-ink-muted">선택사항</span>
+      <details className="group flex flex-col gap-4">
+        <summary className="flex cursor-pointer list-none items-baseline justify-between gap-2 marker:content-none">
+          <StepHeading>어떤 여행을 하고 싶나요?</StepHeading>
+          <span className="shrink-0 text-xs text-ink-muted">선택사항</span>
         </summary>
-        <div className="mt-3 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <p className="text-xs leading-relaxed text-ink-muted">
             나중에 설정하지 않아도 여행은 그대로 만들어져요. 평소 취향이 아니라{" "}
             <strong className="font-medium text-ink">이번 여행</strong>에서 무엇을 중요하게
@@ -290,7 +298,7 @@ export function TripCreateForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-12 rounded-xl bg-brand px-4 text-base font-medium text-brand-ink transition-opacity disabled:opacity-60"
+        className="min-h-14 rounded-2xl bg-brand text-lg font-medium text-brand-ink transition-opacity disabled:opacity-60"
       >
         {submitting ? "여행을 만들고 있습니다..." : "여행 만들기"}
       </button>
