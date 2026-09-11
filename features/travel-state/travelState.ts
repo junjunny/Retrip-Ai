@@ -25,7 +25,8 @@ import type {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-function parseTimeToMinutes(time: string): number | null {
+/** "HH:mm" -> minutes since midnight, or `null` if malformed. Exported so other pure domains (e.g. features/scoring) share this instead of re-parsing time strings. */
+export function parseTimeToMinutes(time: string): number | null {
   const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
   if (!m) return null;
   return Number(m[1]) * 60 + Number(m[2]);

@@ -20,7 +20,14 @@ import {
 } from "@/lib/api";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { destinationToKtoArea } from "@/lib/region";
-import type { CandidatePlace, ItineraryItem, SlotCandidates, TourismPlace } from "@/types";
+import type {
+  CandidatePlace,
+  ExperienceProfile,
+  ItineraryItem,
+  SlotCandidates,
+  TourismPlace,
+  TravelState,
+} from "@/types";
 
 import {
   MAX_CANDIDATES_PER_SLOT,
@@ -134,15 +141,24 @@ export interface GenerateCandidatesOptions {
 }
 
 /**
- * Generates real-place candidates for every FLEXIBLE, not-yet-completed item
- * scheduled today, at or after `now`. Returns `[]` when there's nothing to
- * generate for (e.g. no flexible slots left today) — never throws for that.
- * Existing itinerary data is only ever read, never written.
+ * `generateCandidatesForTrip`'s full working context — the trip data plus the
+ * STEP 6/7 outputs it already had to compute along the way. Exists so a caller
+ * that also needs Travel State / Experience Profile (STEP 9 scoring) doesn't
+ * recompute them a second time (a second Firestore read + a second real
+ * weather/adapter round trip) — NOT a behavior change to candidate generation
+ * itself; `generateCandidatesForTrip` below is unchanged and delegates here.
  */
-export async function generateCandidatesForTrip(
+export interface CandidateGenerationContext {
+  slotCandidates: SlotCandidates[];
+  travelState: TravelState;
+  experienceProfile: ExperienceProfile | null;
+  itinerary: ItineraryItem[];
+}
+
+export async function generateCandidatesWithContext(
   tripId: string,
   options: GenerateCandidatesOptions = {},
-): Promise<SlotCandidates[]> {
+): Promise<CandidateGenerationContext> {
   const snap = await requireDb().doc(`trips/${tripId}`).get();
   if (!snap.exists) throw new TripNotFoundError();
   const data = snap.data() ?? {};
@@ -157,13 +173,15 @@ export async function generateCandidatesForTrip(
   ]);
 
   const slots = selectFlexibleSlots(itinerary, travelState.now);
-  if (slots.length === 0) return [];
+  if (slots.length === 0) {
+    return { slotCandidates: [], travelState, experienceProfile, itinerary };
+  }
 
   const tripReferenceLocation = await resolveTripReferenceLocation(itinerary, destination, currentLocation);
   const contentTypeIds = selectSearchContentTypeIds(experienceProfile, travelState.weatherRisk);
   const radiusMeters = selectNearbySearchRadiusMeters(travelState.trafficBurden);
 
-  return Promise.all(
+  const slotCandidates = await Promise.all(
     slots.map(async (slot) => {
       const anchor = resolveSlotAnchor(slot, tripReferenceLocation);
       const raw = await fetchRawTourism(contentTypeIds, anchor, destination, radiusMeters);
@@ -171,4 +189,19 @@ export async function generateCandidatesForTrip(
       return buildSlotCandidates(slot, candidates, itinerary, anchor);
     }),
   );
+
+  return { slotCandidates, travelState, experienceProfile, itinerary };
+}
+
+/**
+ * Generates real-place candidates for every FLEXIBLE, not-yet-completed item
+ * scheduled today, at or after `now`. Returns `[]` when there's nothing to
+ * generate for (e.g. no flexible slots left today) — never throws for that.
+ * Existing itinerary data is only ever read, never written.
+ */
+export async function generateCandidatesForTrip(
+  tripId: string,
+  options: GenerateCandidatesOptions = {},
+): Promise<SlotCandidates[]> {
+  return (await generateCandidatesWithContext(tripId, options)).slotCandidates;
 }

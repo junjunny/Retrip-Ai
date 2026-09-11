@@ -10,8 +10,10 @@
  * re-exported here.
  */
 export {
+  INDOOR_CONTENT_TYPES,
   MAX_CANDIDATES_PER_SLOT,
   MAX_REASONABLE_DISTANCE_METERS,
+  OUTDOOR_CONTENT_TYPES,
   PREFERENCE_TO_CONTENT_TYPE,
   buildCandidateFromTourism,
   buildSlotCandidates,

@@ -19,6 +19,7 @@ export {
   computeTrafficBurden,
   computeTravelStateStatus,
   computeWeatherRisk,
+  parseTimeToMinutes,
   pickNextPendingItem,
 } from "./travelState";
 export type { TravelStateInput } from "./travelState";

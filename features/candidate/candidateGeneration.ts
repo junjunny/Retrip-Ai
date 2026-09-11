@@ -55,8 +55,14 @@ export const PREFERENCE_TO_CONTENT_TYPE: Record<PreferenceKey, readonly number[]
 /** Generic destination browse when there's no group signal to lean on. */
 const DEFAULT_CONTENT_TYPES: readonly number[] = [12, 39];
 
-/** Content types that offer shelter from weather. */
-const INDOOR_CONTENT_TYPES: readonly number[] = [14, 38, 39, 32];
+/**
+ * Content types that offer shelter from weather — exported so features/scoring
+ * (Situation Fitness) uses the SAME indoor/outdoor classification instead of a
+ * second one drifting out of sync.
+ */
+export const INDOOR_CONTENT_TYPES: readonly number[] = [14, 38, 39, 32];
+/** Content types that are genuinely outdoor (15 festivals are mixed/ambiguous — deliberately excluded, never guessed). */
+export const OUTDOOR_CONTENT_TYPES: readonly number[] = [12, 28];
 
 // ---------------------------------------------------------------------------
 // Step 1-2: which itinerary items are in scope
