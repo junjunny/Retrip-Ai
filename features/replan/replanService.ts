@@ -23,6 +23,7 @@ import { applyPlaceChoices, coerceItinerary, type PlaceChoice } from "@/features
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { scoreTripCandidates, scoreTripCandidatesWithContext } from "@/features/scoring/scoringService";
 import { generateReplanExplanation } from "@/features/replan/explanation/explanationService";
+import type { ExplanationFacts } from "@/features/replan/explanation/explanationFacts";
 import type { ReplanExplanation } from "@/features/replan/explanation/explanationSchema";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { ItineraryItem } from "@/types";
@@ -102,13 +103,14 @@ export async function generateReplanPreview(
 export async function generateReplanPreviewWithExplanation(
   tripId: string,
   options: GenerateReplanPreviewOptions = {},
-): Promise<{ preview: ReplanPreview; explanation: ReplanExplanation }> {
+): Promise<{ preview: ReplanPreview; explanation: ReplanExplanation; facts: ExplanationFacts }> {
   const { preview, travelState } = await buildPreview(tripId, options);
-  const explanation = await generateReplanExplanation(preview, {
-    weatherRisk: travelState.weatherRisk,
-    trafficBurden: travelState.trafficBurden,
-  });
-  return { preview, explanation };
+  const { explanation, facts } = await generateReplanExplanation(
+    preview,
+    { weatherRisk: travelState.weatherRisk, trafficBurden: travelState.trafficBurden },
+    travelState.now.date,
+  );
+  return { preview, explanation, facts };
 }
 
 export interface ApplyReplanOptions {

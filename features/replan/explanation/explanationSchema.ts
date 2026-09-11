@@ -12,6 +12,12 @@ export interface SlotReason {
   reason: string;
 }
 
+export interface PlaceDescription {
+  itineraryOrder: number;
+  /** "what kind of place this is" — grounded in the real TourAPI overview only; see explanationService.ts's system prompt. */
+  description: string;
+}
+
 /** Read by mobile users mid-trip — kept short on purpose (§22). */
 export interface ReplanExplanation {
   title: string;
@@ -22,6 +28,8 @@ export interface ReplanExplanation {
   cautions: string[];
   /** one short line per changed (REPLACE) slot only. */
   slotReasons: SlotReason[];
+  /** "이런 곳이에요" — one entry per REPLACE slot that actually had a real TourAPI overview; omitted for the rest (STEP 12). */
+  placeDescriptions: PlaceDescription[];
 }
 
 export const MAX_TITLE_LENGTH = 60;
@@ -29,6 +37,7 @@ export const MAX_SUMMARY_LENGTH = 200;
 export const MAX_REASON_LENGTH = 120;
 export const MAX_REASONS = 3;
 export const MAX_CAUTIONS = 2;
+export const MAX_PLACE_DESCRIPTION_LENGTH = 150;
 
 function isShortString(v: unknown, maxLength: number): v is string {
   return typeof v === "string" && v.trim().length > 0 && v.length <= maxLength;
@@ -56,6 +65,13 @@ export function isValidReplanExplanation(v: unknown): v is ReplanExplanation {
     const sr = s as Record<string, unknown>;
     if (typeof sr.itineraryOrder !== "number") return false;
     if (!isShortString(sr.reason, MAX_REASON_LENGTH)) return false;
+  }
+  if (!Array.isArray(o.placeDescriptions)) return false;
+  for (const d of o.placeDescriptions) {
+    if (typeof d !== "object" || d === null) return false;
+    const pd = d as Record<string, unknown>;
+    if (typeof pd.itineraryOrder !== "number") return false;
+    if (!isShortString(pd.description, MAX_PLACE_DESCRIPTION_LENGTH)) return false;
   }
   return true;
 }
@@ -85,6 +101,7 @@ export function isGrounded(explanation: ReplanExplanation, facts: ExplanationFac
     ...explanation.reasons,
     ...explanation.cautions,
     ...explanation.slotReasons.map((s) => s.reason),
+    ...explanation.placeDescriptions.map((d) => d.description),
   ].join(" ");
 
   const hasDurationFact = facts.slots.some((s) => s.travelDurationMinutes !== undefined);
@@ -100,6 +117,13 @@ export function isGrounded(explanation: ReplanExplanation, facts: ExplanationFac
   // every slotReasons entry must refer to a REPLACE slot this preview actually has
   const replaceOrders = new Set(facts.slots.filter((s) => s.action === "REPLACE").map((s) => s.itineraryOrder));
   if (explanation.slotReasons.some((s) => !replaceOrders.has(s.itineraryOrder))) return false;
+
+  // a place description may only exist for a slot that actually had a real
+  // TourAPI overview to summarize — never a description invented from nothing.
+  const overviewOrders = new Set(
+    facts.slots.filter((s) => s.placeOverviewSnippet !== undefined).map((s) => s.itineraryOrder),
+  );
+  if (explanation.placeDescriptions.some((d) => !overviewOrders.has(d.itineraryOrder))) return false;
 
   return true;
 }

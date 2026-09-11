@@ -139,3 +139,26 @@ export interface RouteData {
   fetchedAt: string;
   provider: "kakao-mobility";
 }
+
+/**
+ * Detail-level tourism content (STEP 12) — 한국관광공사 국문 관광정보, detailCommon2
+ * (+ detailIntro2 for a festival's dates). Unlike `TourismPlace` (list-operation
+ * fields only), this carries the description text and, for a currently-running
+ * event, its real start/end dates. `null` fields mean the API didn't provide
+ * that data for this content — never filled in with a guess.
+ */
+export interface TourismDetail {
+  /** contentid */
+  id: string;
+  /** overview — free-text Korean description. */
+  description: string | null;
+  /** firstimage — same field TourismPlace.imageUrl reads; re-confirmed at detail level. */
+  imageUrl: string | null;
+  /**
+   * Only present when this content is a festival (contentTypeId 15) — from
+   * detailIntro2's eventstartdate/eventenddate ("YYYYMMDD"). `null` for every
+   * other content type, or when the festival has no recorded dates.
+   */
+  event: { startDate: string; endDate: string } | null;
+  source: "tour-korservice";
+}

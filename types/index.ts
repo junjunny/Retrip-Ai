@@ -54,6 +54,21 @@ export interface Trip {
   itinerary: ItineraryItem[];
   createdAt: Timestamp;
   status: "active" | "completed";
+  /**
+   * "이번 여행"의 취향 (STEP 12) — NOT any participant's usual travel taste.
+   * Same 8 axes / 1..10 scale as a participant `PreferenceVector`, but a
+   * conceptually different thing: this is what THIS trip's group decided to
+   * prioritize, set once at trip creation. Feeds Experience Preservation and
+   * the Mini Guide (features/miniGuide) — never Group Satisfaction, which
+   * stays sourced from individual participant preferences (STEP 5/6).
+   * `null` only for a trip created before STEP 12 (no migration — the field
+   * is simply absent on that Firestore doc). Every trip created from here on
+   * always has one, defaulting to all-5 (neutral) when the creator doesn't
+   * touch it — a deliberate "no strong signal" value, distinct from `null`'s
+   * "this feature didn't exist yet". See features/trip/trip.ts's
+   * `coerceTripPreference`.
+   */
+  tripPreference: ExperienceProfile | null;
 }
 
 /** Survey status for a participant (Phase 2). */
@@ -251,6 +266,17 @@ export interface CandidatePlace {
   longitude: number | null;
   /** TourAPI contentTypeId this came from (see lib/api/tour/tourism.ts), when known. */
   category: number | null;
+  /**
+   * TourAPI contentid (STEP 12) — kept separately from `placeId`, which may
+   * end up `"kakao:{id}"` when Kakao verification wins (see
+   * buildCandidateFromTourism / lib/place/match.ts). Needed to fetch a
+   * detail-level description/event via lib/api/tour/tourismDetail.ts without
+   * re-searching. `null` when this candidate has no TourAPI origin (e.g. a
+   * "keep current" view — see features/scoring/scoring.ts's itemToCandidateView).
+   */
+  tourApiContentId: string | null;
+  /** TourAPI firstimage, when the source data had one — never a generated/guessed URL. */
+  imageUrl: string | null;
   source: PlaceSource;
   verificationStatus: PlaceVerificationStatus;
   candidateReason: string;

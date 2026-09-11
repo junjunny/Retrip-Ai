@@ -465,6 +465,8 @@ export function itemToCandidateView(item: ItineraryItem): CandidatePlace {
     latitude: item.latitude,
     longitude: item.longitude,
     category: null,
+    tourApiContentId: null,
+    imageUrl: null,
     source: "tour-korservice",
     verificationStatus: item.placeConfirmed ? "verified" : "candidate",
     candidateReason: "현재 일정 유지",

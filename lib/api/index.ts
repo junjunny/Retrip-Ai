@@ -15,6 +15,7 @@ export {
   searchTourismByKeyword,
   fetchTourismNearby,
 } from "./tour/tourism";
+export { fetchTourismDetail } from "./tour/tourismDetail";
 
 // 한국관광공사 지역별 방문자수
 export { fetchMetroVisitors, fetchDistrictVisitors } from "./tour/visitors";

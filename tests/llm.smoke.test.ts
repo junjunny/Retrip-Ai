@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 import { generateJsonCompletion } from "@/lib/llm";
 import { isGrounded, isValidReplanExplanation } from "@/features/replan/explanation";
 import { generateReplanExplanation } from "@/features/replan/explanation/explanationService";
-import { buildExplanationFacts } from "@/features/replan/explanation/explanationFacts";
 import type { ReplanPreview, ReplanSlotProposal } from "@/features/replan";
 import type { RankedOption, ScoreBreakdown } from "@/features/scoring";
 
@@ -35,6 +34,8 @@ const winner: RankedOption = {
     latitude: 35.16,
     longitude: 129.16,
     category: 14,
+    tourApiContentId: "tour:999",
+    imageUrl: null,
     source: "tour-korservice",
     verificationStatus: "verified",
     candidateReason: "",
@@ -55,6 +56,7 @@ const slot: ReplanSlotProposal = {
     longitude: 129.16,
     source: "tour-korservice",
     verificationStatus: "verified",
+    imageUrl: null,
   },
   score: winner,
   options: [winner],
@@ -77,9 +79,8 @@ d("LLM explanation (live)", () => {
   });
 
   it("generateReplanExplanation produces a schema-valid, grounded explanation from a real LLM call", async () => {
-    const explanation = await generateReplanExplanation(preview, { weatherRisk: "high", trafficBurden: "unknown" });
+    const { explanation, facts } = await generateReplanExplanation(preview, { weatherRisk: "high", trafficBurden: "unknown" }, "2026-10-01");
     expect(isValidReplanExplanation(explanation)).toBe(true);
-    const facts = buildExplanationFacts(preview, { weatherRisk: "high", trafficBurden: "unknown" });
     expect(isGrounded(explanation, facts)).toBe(true);
     // never throws / never empty even against the real API
     expect(explanation.title.length).toBeGreaterThan(0);
@@ -90,7 +91,7 @@ d("LLM explanation (live)", () => {
     const original = process.env.LLM_API_KEY;
     process.env.LLM_API_KEY = "sk-invalid-test-key";
     try {
-      const explanation = await generateReplanExplanation(preview, { weatherRisk: "unknown", trafficBurden: "unknown" });
+      const { explanation } = await generateReplanExplanation(preview, { weatherRisk: "unknown", trafficBurden: "unknown" }, "2026-10-01");
       expect(isValidReplanExplanation(explanation)).toBe(true);
     } finally {
       process.env.LLM_API_KEY = original;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
 import { ItineraryPlaces } from "@/components/trip/ItineraryPlaces";
+import { MiniGuide } from "@/components/trip/MiniGuide";
 import { ReplanPanel } from "@/components/trip/ReplanPanel";
 import { TripParticipants } from "@/components/trip/TripParticipants";
 import { getTrip } from "@/features/trip";
@@ -106,6 +107,8 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
           {fmtDate(trip.startDate)} ~ {fmtDate(trip.endDate)}
         </p>
       </header>
+
+      <MiniGuide tripId={trip.tripId} />
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-zinc-500">여행 일정</h2>

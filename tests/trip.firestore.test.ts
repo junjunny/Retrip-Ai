@@ -142,11 +142,45 @@ d("createTrip + getTrip", () => {
         "status",
         "title",
         "tripId",
+        "tripPreference",
       ].sort(),
     );
     expect(raw.tripId).toBe(id);
     expect(raw.status).toBe("active");
     expect(raw.createdAt instanceof Timestamp).toBe(true);
+  });
+
+  it("STEP 12 — a new trip always gets a full tripPreference vector, all-neutral(5) when the creator never touches it", async () => {
+    const id = await makeTrip();
+    const trip = await getTrip(id);
+    expect(trip!.tripPreference).toEqual({
+      nature: 5, culture: 5, food: 5, cafe: 5, shopping: 5, activity: 5, photo: 5, relax: 5,
+    });
+  });
+
+  it("STEP 12 — an explicit tripPreference round-trips exactly, separate from any participant's own preference", async () => {
+    const id = await makeTrip({ tripPreference: { nature: 9, culture: 2, food: 3, cafe: 4, shopping: 1, activity: 6, photo: 9, relax: 8 } });
+    const trip = await getTrip(id);
+    expect(trip!.tripPreference).toEqual({ nature: 9, culture: 2, food: 3, cafe: 4, shopping: 1, activity: 6, photo: 9, relax: 8 });
+  });
+
+  it("STEP 12 — a legacy trip with no tripPreference field at all reads back null, not a fabricated default", async () => {
+    const db = getFirestoreDb()!;
+    const id = "P12LEGACYTEST";
+    await setDoc(doc(db, "trips", id), {
+      tripId: id,
+      title: TITLE,
+      destination: "부산",
+      startDate: "2026-09-10",
+      endDate: "2026-09-10",
+      itinerary: [],
+      createdAt: serverTimestamp(),
+      status: "active",
+      // tripPreference intentionally omitted — simulates a pre-STEP-12 doc
+    });
+    created.push(id);
+    const trip = await getTrip(id);
+    expect(trip!.tripPreference).toBeNull();
   });
 
   it("TEST 8 — rejects an invalid draft before any write", async () => {

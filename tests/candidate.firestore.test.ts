@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { generateCandidatesForTrip } from "@/features/candidate/candidateService";
+import { generateCandidatesForTrip, generateCandidatesWithContext } from "@/features/candidate/candidateService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { getAdminDb } from "@/lib/firebase/admin";
 
@@ -62,5 +62,19 @@ d("generateCandidatesForTrip (live)", () => {
 
   it("throws TripNotFoundError for a non-existent trip", async () => {
     await expect(generateCandidatesForTrip("NOSUCHTRIP8")).rejects.toBeInstanceOf(TripNotFoundError);
+  });
+
+  it("STEP 12 — Experience Preservation's profile source is this trip's own tripPreference, not the (0-participant) participant average", async () => {
+    const now = new Date("2026-10-01T01:00:00.000Z");
+    const tripPreference = { nature: 9, culture: 1, food: 1, cafe: 1, shopping: 1, activity: 1, photo: 9, relax: 9 };
+    await getAdminDb()!.doc(`trips/${tripId}`).set({ tripPreference }, { merge: true });
+    const context = await generateCandidatesWithContext(tripId, { now });
+    // Case C: tripPreference set, 0 participants -> experienceProfile IS the tripPreference, not null/neutral
+    expect(context.experienceProfile).toEqual(tripPreference);
+
+    await getAdminDb()!.doc(`trips/${tripId}`).update({ tripPreference: null });
+    const contextNoPref = await generateCandidatesWithContext(tripId, { now });
+    // Case D: neither tripPreference nor participants -> null, never fabricated
+    expect(contextNoPref.experienceProfile).toBeNull();
   });
 });

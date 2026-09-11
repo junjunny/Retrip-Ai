@@ -8,12 +8,13 @@
 import "server-only";
 
 import { getAdminDb } from "@/lib/firebase/admin";
-import type { ItineraryItem } from "@/types";
+import type { ExperienceProfile, ItineraryItem } from "@/types";
 
 import { applyPlaceChoice, type PlaceChoice } from "./itineraryPlace";
 import {
   applyItineraryEdit,
   coerceItinerary,
+  coerceTripPreference,
   removeItineraryItem,
   type ItineraryEdit,
 } from "./trip";
@@ -64,6 +65,19 @@ export async function updateItineraryPlace(
   const next = applyPlaceChoice(items, order, choice);
   await ref.update({ itinerary: next });
   return next;
+}
+
+/**
+ * `tripPreference` only — used by the Mini Guide route (STEP 12), which has
+ * no other reason to touch the trip doc. `null` for a trip with none set
+ * (pre-STEP-12) as well as for a trip that doesn't exist — a missing trip is
+ * not this function's error to raise (its only caller treats "nothing to
+ * guide" the same way either way).
+ */
+export async function getTripPreference(tripId: string): Promise<ExperienceProfile | null> {
+  const snap = await requireDb().doc(`trips/${tripId}`).get();
+  if (!snap.exists) return null;
+  return coerceTripPreference(snap.get("tripPreference"));
 }
 
 async function loadItems(tripId: string) {

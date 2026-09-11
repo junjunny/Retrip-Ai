@@ -170,6 +170,19 @@ describe("buildCandidateFromTourism", () => {
     expect(c.category).toBe(t.contentTypeId);
   });
 
+  it("STEP 12 — carries the real TourAPI contentId + image forward, independent of which source placeId ends up preferring", () => {
+    const t = tour({ id: "126081", imageUrl: "https://tong.visitkorea.or.kr/example.jpg" });
+    const c = buildCandidateFromTourism(t, [kakaoLoc()]); // Kakao verification wins placeId ("kakao:...")
+    expect(c.placeId).toMatch(/^kakao:/);
+    expect(c.tourApiContentId).toBe("126081"); // TourAPI id preserved regardless
+    expect(c.imageUrl).toBe("https://tong.visitkorea.or.kr/example.jpg");
+  });
+
+  it("STEP 12 — no TourAPI image -> imageUrl null, never invented", () => {
+    const c = buildCandidateFromTourism(tour({ imageUrl: null }), []);
+    expect(c.imageUrl).toBeNull();
+  });
+
   it("TEST 15 — an empty Kakao response still yields a usable TourAPI-only candidate", () => {
     const c = buildCandidateFromTourism(tour(), []);
     expect(c.placeName).toBeTruthy();
@@ -210,6 +223,8 @@ describe("dedupeCandidates", () => {
     latitude: 35.1587,
     longitude: 129.1604,
     category: 12,
+    tourApiContentId: "tour:1",
+    imageUrl: null,
     source: "tour-korservice",
     verificationStatus: "candidate",
     candidateReason: "",
@@ -244,6 +259,8 @@ describe("filterInvalidCandidates", () => {
     latitude: 35.1587,
     longitude: 129.1604,
     category: 12,
+    tourApiContentId: "tour:1",
+    imageUrl: null,
     source: "tour-korservice",
     verificationStatus: "candidate",
     candidateReason: "",
@@ -289,6 +306,8 @@ describe("buildSlotCandidates", () => {
     latitude: 35.16,
     longitude: 129.16,
     category: 12,
+    tourApiContentId: "tour:1",
+    imageUrl: null,
     source: "tour-korservice",
     verificationStatus: "candidate",
     candidateReason: "",
@@ -322,7 +341,7 @@ describe("buildSlotCandidates", () => {
     expect(result.candidates.map((x) => x.placeId)).toEqual(["z", "a", "m"]);
     for (const cand of result.candidates) {
       expect(Object.keys(cand).sort()).toEqual(
-        ["address", "candidateReason", "category", "latitude", "longitude", "placeId", "placeName", "source", "verificationStatus"].sort(),
+        ["address", "candidateReason", "category", "imageUrl", "latitude", "longitude", "placeId", "placeName", "source", "tourApiContentId", "verificationStatus"].sort(),
       );
     }
   });

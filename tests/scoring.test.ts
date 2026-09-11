@@ -47,6 +47,8 @@ const place = (over: Partial<CandidatePlace> = {}): CandidatePlace => ({
   latitude: 35.16,
   longitude: 129.16,
   category: 12,
+  tourApiContentId: "tour:1",
+  imageUrl: null,
   source: "tour-korservice",
   verificationStatus: "verified",
   candidateReason: "",

@@ -11,7 +11,7 @@ import "server-only";
 import { getTripExperienceProfile } from "@/features/experience/experienceService";
 import { getTripTravelState } from "@/features/travel-state/travelStateService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
-import { coerceItinerary } from "@/features/trip/trip";
+import { coerceItinerary, coerceTripPreference } from "@/features/trip/trip";
 import {
   fetchTourismByArea,
   fetchTourismNearby,
@@ -166,11 +166,18 @@ export async function generateCandidatesWithContext(
   const destination = typeof data.destination === "string" ? data.destination : "";
   const itinerary = coerceItinerary(data.itinerary, startDate);
 
+  // STEP 12: "what does THIS trip's group care about" now comes from the
+  // trip's own tripPreference when it has one — a legacy trip (tripPreference
+  // null) falls back to STEP 6's participant-averaged profile, unchanged.
+  // Skipping the participant-average computation entirely when tripPreference
+  // exists also saves a Firestore read of every preference doc.
+  const tripPreference = coerceTripPreference(data.tripPreference);
   const currentLocation = options.currentLocation ?? null;
-  const [travelState, experienceProfile] = await Promise.all([
+  const [travelState, participantExperienceProfile] = await Promise.all([
     getTripTravelState(tripId, { now: options.now, currentLocation }),
-    getTripExperienceProfile(tripId),
+    tripPreference ? Promise.resolve(null) : getTripExperienceProfile(tripId),
   ]);
+  const experienceProfile = tripPreference ?? participantExperienceProfile;
 
   const slots = selectFlexibleSlots(itinerary, travelState.now);
   if (slots.length === 0) {

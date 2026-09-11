@@ -5,11 +5,13 @@
  */
 import { doc, getDoc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 
+import { defaultPreferenceVector } from "@/features/participant/participant";
 import { getFirestoreDb } from "@/lib/firebase/client";
 import type { Trip } from "@/types";
 
 import {
   coerceItinerary,
+  coerceTripPreference,
   generateTripId,
   normalizeItinerary,
   validateTripDraft,
@@ -60,6 +62,10 @@ export async function createTrip(draft: TripDraft): Promise<string> {
       startDate: draft.startDate,
       endDate: draft.endDate,
       itinerary,
+      // always a full 8-axis vector for a new trip — all-neutral(5) when the
+      // creator never opened the "이번 여행은 어떤 여행인가요?" step. `null`
+      // is reserved for trips that predate STEP 12 entirely (see types/index.ts).
+      tripPreference: draft.tripPreference ?? defaultPreferenceVector(),
       createdAt: serverTimestamp(),
       status: "active",
     });
@@ -84,6 +90,7 @@ export async function getTrip(tripId: string): Promise<Trip | null> {
     itinerary: coerceItinerary(data.itinerary, startDate),
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
     status: data.status === "completed" ? "completed" : "active",
+    tripPreference: coerceTripPreference(data.tripPreference),
   };
 }
 

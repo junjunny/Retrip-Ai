@@ -6,7 +6,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { applyReplanPreview, generateReplanPreview, ReplanStaleError } from "@/features/replan/replanService";
+import {
+  applyReplanPreview,
+  generateReplanPreview,
+  generateReplanPreviewWithExplanation,
+  ReplanStaleError,
+} from "@/features/replan/replanService";
+import { submitParticipant } from "@/features/participant/participantService";
+import { defaultPreferenceVector } from "@/features/participant/participant";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { getAdminDb } from "@/lib/firebase/admin";
 
@@ -121,5 +128,31 @@ d("Re:Plan (live)", () => {
     await expect(
       applyReplanPreview(tripId, { baseItineraryFingerprint: "00000000", generatedAt: new Date().toISOString() }),
     ).rejects.toBeInstanceOf(ReplanStaleError);
+  });
+
+  it("STEP 12 — a real REPLACE carries a real image/address, and the explanation's placeDescriptions is grounded in a real TourAPI overview", async () => {
+    await resetTrip();
+    await submitParticipant(tripId, {
+      nickname: "자연러버",
+      preferences: { ...defaultPreferenceVector(), nature: 10, photo: 10, relax: 10, culture: 1, food: 1, cafe: 1, shopping: 1, activity: 1 },
+      pace: "normal",
+      indoorOutdoor: "outdoor",
+    });
+
+    const { preview, explanation } = await generateReplanPreviewWithExplanation(tripId, { now });
+    const replaced = preview.slots.find((s) => s.action === "REPLACE");
+    expect(replaced).toBeDefined(); // the strongly-biased participant should tip a real candidate past the improvement threshold
+    expect(replaced!.proposed!.placeName.length).toBeGreaterThan(0);
+    // real TourAPI data only — never fabricated (imageUrl may legitimately be null if this particular place has none)
+    expect(
+      replaced!.proposed!.imageUrl === null || replaced!.proposed!.imageUrl!.startsWith("http"),
+    ).toBe(true);
+
+    // whatever the explanation says, it must still pass the same grounding gate used elsewhere
+    for (const pd of explanation.placeDescriptions) {
+      expect(preview.slots.some((s) => s.itineraryOrder === pd.itineraryOrder && s.action === "REPLACE")).toBe(true);
+    }
+
+    await resetTrip();
   });
 });

@@ -91,6 +91,8 @@ export interface ReplanSlotProposal {
     longitude: number | null;
     source: PlaceSource;
     verificationStatus: PlaceVerificationStatus;
+    /** TourAPI firstimage, when the source data had one (STEP 12) — never a generated/guessed URL. */
+    imageUrl: string | null;
   } | null;
   /** the winning option's full STEP 9 score breakdown — the "why". */
   score: RankedOption;
@@ -168,6 +170,7 @@ function buildSlotProposal(
             longitude: winner.place.longitude,
             source: winner.place.source,
             verificationStatus: winner.place.verificationStatus,
+            imageUrl: winner.place.imageUrl,
           }
         : null,
     score: winner,

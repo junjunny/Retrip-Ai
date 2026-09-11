@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyItineraryEdit,
   applyRowPatch,
+  coerceTripPreference,
   dropRow,
   generateTripId,
   normalizeItinerary,
@@ -12,6 +13,7 @@ import {
   validateTripDraft,
   type TripDraft,
 } from "@/features/trip/trip";
+import { defaultPreferenceVector } from "@/features/participant/participant";
 import type { ItineraryItem } from "@/types";
 
 const baseDraft = (over: Partial<TripDraft> = {}): TripDraft => ({
@@ -303,5 +305,52 @@ describe("generateTripId", () => {
   it("is effectively unique across many draws", () => {
     const ids = new Set(Array.from({ length: 5000 }, () => generateTripId()));
     expect(ids.size).toBe(5000);
+  });
+});
+
+// ===========================================================================
+// STEP 12 — Trip Preference ("이번 여행의 취향", separate from any participant's)
+// ===========================================================================
+describe("validateTripDraft — tripPreference", () => {
+  it("an omitted tripPreference is valid — a trip can be created without touching it", () => {
+    expect(validateTripDraft(baseDraft())).toEqual([]);
+  });
+
+  it("a full, in-range (1~10) tripPreference is valid", () => {
+    expect(validateTripDraft(baseDraft({ tripPreference: { ...defaultPreferenceVector(), nature: 9, cafe: 8 } }))).toEqual([]);
+  });
+
+  it("an out-of-range or non-integer axis is rejected, by its Korean label", () => {
+    const errors = validateTripDraft(baseDraft({ tripPreference: { ...defaultPreferenceVector(), nature: 11 } }));
+    expect(errors.some((e) => e.includes("자연") && e.includes("1~10"))).toBe(true);
+  });
+
+  it("nature: 0 and nature: 3.5 are both rejected the same way", () => {
+    expect(validateTripDraft(baseDraft({ tripPreference: { ...defaultPreferenceVector(), nature: 0 } })).length).toBeGreaterThan(0);
+    expect(validateTripDraft(baseDraft({ tripPreference: { ...defaultPreferenceVector(), nature: 3.5 } })).length).toBeGreaterThan(0);
+  });
+});
+
+describe("coerceTripPreference", () => {
+  it("a legacy trip with no tripPreference field at all -> null, never a fabricated default", () => {
+    expect(coerceTripPreference(undefined)).toBeNull();
+    expect(coerceTripPreference(null)).toBeNull();
+  });
+
+  it("a full valid vector round-trips exactly", () => {
+    const v = { ...defaultPreferenceVector(), nature: 9, cafe: 8, photo: 8, relax: 9 };
+    expect(coerceTripPreference(v)).toEqual(v);
+  });
+
+  it("is deterministic: same input -> same output", () => {
+    const v = { ...defaultPreferenceVector(), food: 7 };
+    expect(coerceTripPreference(v)).toEqual(coerceTripPreference(v));
+  });
+
+  it("a partial/malformed stored value is defensively normalized (missing -> neutral, out-of-range -> clamped), same policy as participant preferences", () => {
+    const partial = coerceTripPreference({ nature: 12, culture: -1 });
+    expect(partial?.nature).toBe(10);
+    expect(partial?.culture).toBe(1);
+    expect(partial?.food).toBe(5); // missing axis -> neutral
   });
 });

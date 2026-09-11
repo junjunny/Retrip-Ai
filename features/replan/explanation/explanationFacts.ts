@@ -28,6 +28,17 @@ export interface SlotFact {
   /** only present when a real Kakao Mobility route existed for the winning option. */
   travelDurationMinutes?: number;
   travelDistanceMeters?: number;
+  /** STEP 12 — only present when a real TourAPI detail record was fetched for the winning candidate. */
+  placeAddress?: string;
+  placeOverviewSnippet?: string;
+  /**
+   * Whether a real festival/event is running RIGHT NOW — decided by
+   * `isEventOngoing` (deterministic date comparison), never by the LLM. Absent
+   * entirely (not `false`) when there's no real event data to judge at all.
+   */
+  eventOngoing?: boolean;
+  eventStartDate?: string;
+  eventEndDate?: string;
 }
 
 export interface ExplanationFacts {
@@ -40,11 +51,43 @@ export interface ExplanationFacts {
   slots: SlotFact[];
 }
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
+/** Raw TourAPI detail data for one REPLACE slot's winning candidate (STEP 12) — see features/replan/explanation/explanationService.ts for where this is fetched. */
+export interface SlotPlaceDetail {
+  itineraryOrder: number;
+  address: string | null;
+  /** TourAPI overview — free text, possibly long; truncated into the fact (see OVERVIEW_SNIPPET_MAX_LENGTH). */
+  overview: string | null;
+  /** raw "YYYYMMDD" dates from TourAPI detailIntro2 (festival content only) — "ongoing" is decided separately, by `isEventOngoing`. */
+  event: { startDate: string; endDate: string } | null;
+}
 
-function buildSlotFact(slot: ReplanPreview["slots"][number]): SlotFact {
+const round1 = (n: number) => Math.round(n * 10) / 10;
+export const OVERVIEW_SNIPPET_MAX_LENGTH = 220;
+
+/**
+ * Deterministic "지금 진행 중" check — the LLM never decides this (AGENTS-spec
+ * §17). `event` dates and `nowDate` are compared as plain "YYYYMMDD" strings
+ * (lexical order = chronological order for this format); `nowDate` is
+ * "YYYY-MM-DD" (the app's usual convention) and is normalized here. `null`
+ * event, or a missing date, is never treated as "ongoing".
+ */
+export function isEventOngoing(
+  event: { startDate: string; endDate: string } | null,
+  nowDate: string,
+): boolean {
+  if (!event || !event.startDate || !event.endDate) return false;
+  const now = nowDate.replaceAll("-", "");
+  return event.startDate <= now && now <= event.endDate;
+}
+
+function buildSlotFact(
+  slot: ReplanPreview["slots"][number],
+  nowDate: string,
+  placeDetail: SlotPlaceDetail | undefined,
+): SlotFact {
   const b = slot.score.breakdown;
   const route = slot.score.route;
+  const ongoing = placeDetail ? isEventOngoing(placeDetail.event, nowDate) : false;
   return {
     itineraryOrder: slot.itineraryOrder,
     action: slot.action,
@@ -59,19 +102,29 @@ function buildSlotFact(slot: ReplanPreview["slots"][number]): SlotFact {
     ...(route
       ? { travelDurationMinutes: round1(route.durationSeconds / 60), travelDistanceMeters: route.distanceMeters }
       : {}),
+    ...(placeDetail?.address ? { placeAddress: placeDetail.address } : {}),
+    ...(placeDetail?.overview
+      ? { placeOverviewSnippet: placeDetail.overview.slice(0, OVERVIEW_SNIPPET_MAX_LENGTH) }
+      : {}),
+    ...(ongoing && placeDetail?.event
+      ? { eventOngoing: true, eventStartDate: placeDetail.event.startDate, eventEndDate: placeDetail.event.endDate }
+      : {}),
   };
 }
 
 export function buildExplanationFacts(
   preview: ReplanPreview,
   travelStateContext: { weatherRisk: RiskLevel; trafficBurden: RiskLevel },
+  nowDate: string,
+  placeDetails: readonly SlotPlaceDetail[] = [],
 ): ExplanationFacts {
+  const detailByOrder = new Map(placeDetails.map((d) => [d.itineraryOrder, d]));
   return {
     tripId: preview.tripId,
     weatherRisk: travelStateContext.weatherRisk,
     trafficBurden: travelStateContext.trafficBurden,
     changedCount: preview.slots.filter((s) => s.action === "REPLACE").length,
     keptCount: preview.slots.filter((s) => s.action === "KEEP").length,
-    slots: preview.slots.map(buildSlotFact),
+    slots: preview.slots.map((s) => buildSlotFact(s, nowDate, detailByOrder.get(s.itineraryOrder))),
   };
 }

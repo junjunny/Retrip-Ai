@@ -168,6 +168,11 @@ export function buildCandidateFromTourism(
     latitude: resolved.latitude,
     longitude: resolved.longitude,
     category: tour.contentTypeId,
+    // kept separately from placeId (which may end up "kakao:{id}") and
+    // straight from the TourAPI source itself, not matchPlace's pick — see
+    // types/index.ts's CandidatePlace.tourApiContentId doc comment (STEP 12).
+    tourApiContentId: tour.id || null,
+    imageUrl: tour.imageUrl,
     source: resolved.sources[0] ?? "tour-korservice",
     verificationStatus: resolved.verificationStatus,
     candidateReason: resolved.sources.includes("kakao")

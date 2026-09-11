@@ -5,10 +5,11 @@
  * the server-only `generateReplanExplanation` (LLM I/O) lives in
  * `./explanationService` and must be imported from there directly.
  */
-export { buildExplanationFacts } from "./explanationFacts";
-export type { ExplanationFacts, SlotFact } from "./explanationFacts";
+export { OVERVIEW_SNIPPET_MAX_LENGTH, buildExplanationFacts, isEventOngoing } from "./explanationFacts";
+export type { ExplanationFacts, SlotFact, SlotPlaceDetail } from "./explanationFacts";
 export {
   MAX_CAUTIONS,
+  MAX_PLACE_DESCRIPTION_LENGTH,
   MAX_REASON_LENGTH,
   MAX_REASONS,
   MAX_SUMMARY_LENGTH,
@@ -16,5 +17,5 @@ export {
   isGrounded,
   isValidReplanExplanation,
 } from "./explanationSchema";
-export type { ReplanExplanation, SlotReason } from "./explanationSchema";
+export type { PlaceDescription, ReplanExplanation, SlotReason } from "./explanationSchema";
 export { FALLBACK_HIGH_THRESHOLD, FALLBACK_LOW_BURDEN_THRESHOLD, buildFallbackExplanation } from "./fallback";

@@ -5,7 +5,14 @@
  * be unit-tested without a browser or Firestore. Firestore access lives in
  * `./tripService`.
  */
-import type { ItineraryItem, ScheduleType } from "@/types";
+import {
+  PREFERENCE_KEYS,
+  PREFERENCE_LABELS,
+  PREFERENCE_MAX,
+  PREFERENCE_MIN,
+  coercePreferenceVector,
+} from "@/features/participant/participant";
+import type { ExperienceProfile, ItineraryItem, ScheduleType } from "@/types";
 
 /** "HH:mm", 24-hour, leading zeros required (09:00 ok, 9:0 not). */
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -48,6 +55,12 @@ export interface TripDraft {
   startDate: string;
   endDate: string;
   itinerary: ItineraryDraft[];
+  /**
+   * "이번 여행"의 취향 (STEP 12) — optional in the draft; `createTrip` fills
+   * in the all-neutral default when omitted, so a user who never opens this
+   * step still creates a trip normally. See types/index.ts's `Trip.tripPreference`.
+   */
+  tripPreference?: ExperienceProfile;
 }
 
 /**
@@ -80,7 +93,31 @@ export function validateTripDraft(draft: TripDraft): string[] {
     errors.push("여행 기간에 없는 날짜의 일정이 있습니다.");
   }
 
+  if (draft.tripPreference) {
+    for (const key of PREFERENCE_KEYS) {
+      const v = draft.tripPreference[key];
+      if (typeof v !== "number" || !Number.isInteger(v) || v < PREFERENCE_MIN || v > PREFERENCE_MAX) {
+        errors.push(`"${PREFERENCE_LABELS[key]}" 여행 취향은 ${PREFERENCE_MIN}~${PREFERENCE_MAX} 사이 값이어야 합니다.`);
+      }
+    }
+  }
+
   return errors;
+}
+
+/**
+ * Reads a stored `tripPreference` field back into an `ExperienceProfile`.
+ * `null`/`undefined`/non-object (a trip created before STEP 12, where the
+ * field is simply absent) -> `null` — never a fabricated default standing in
+ * for "this feature didn't exist yet" (see types/index.ts's `Trip.tripPreference`
+ * doc comment). A present-but-partial/out-of-range value is defensively
+ * normalized via `coercePreferenceVector` (missing axis -> neutral,
+ * out-of-range -> clamp), same policy STEP 5/6 already use for participant
+ * preferences. Pure.
+ */
+export function coerceTripPreference(value: unknown): ExperienceProfile | null {
+  if (value === null || value === undefined || typeof value !== "object") return null;
+  return coercePreferenceVector(value as Partial<Record<(typeof PREFERENCE_KEYS)[number], unknown>>);
 }
 
 /**

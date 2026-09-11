@@ -6,12 +6,16 @@
  * page load, or Travel State change (see AGENTS-spec §32). Read-only: never
  * writes the itinerary. `now` always comes from the server clock — a client
  * can never supply it (that would let a client manipulate weather/schedule
- * scoring for a time that isn't real). Returns `{ preview, explanation }`;
+ * scoring for a time that isn't real). Returns `{ preview, explanation, events }`;
  * `preview.slots` is `[]` (not an error) when there's nothing eligible to
  * re-plan right now. `explanation` (STEP 11) is a human-readable summary of
  * the SAME deterministic `preview` — an LLM failure degrades it to a
  * deterministic fallback but never fails this request (see
- * features/replan/explanation).
+ * features/replan/explanation). `events` (STEP 12) is a deterministic,
+ * code-decided "is a real festival/event running right now" projection for
+ * each REPLACE slot that has one — the ONLY place event dates reach the
+ * client; score numbers (situationFitness etc.) are deliberately NOT
+ * forwarded over the wire at all (the UI never shows them — AGENTS-spec §26).
  */
 import { generateReplanPreviewWithExplanation } from "@/features/replan/replanService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
@@ -43,8 +47,11 @@ export async function POST(
   const currentLocation = parseCurrentLocation(body.currentLocation);
 
   try {
-    const { preview, explanation } = await generateReplanPreviewWithExplanation(tripId, { currentLocation });
-    return Response.json({ preview, explanation });
+    const { preview, explanation, facts } = await generateReplanPreviewWithExplanation(tripId, { currentLocation });
+    const events = facts.slots
+      .filter((s) => s.eventOngoing)
+      .map((s) => ({ itineraryOrder: s.itineraryOrder, startDate: s.eventStartDate!, endDate: s.eventEndDate! }));
+    return Response.json({ preview, explanation, events });
   } catch (err) {
     if (err instanceof TripNotFoundError) {
       return Response.json({ error: err.message }, { status: 404 });

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { PreferenceScale } from "@/components/shared/PreferenceScale";
 import {
   applyRowPatch,
   createTrip,
@@ -10,7 +11,13 @@ import {
   TripValidationError,
 } from "@/features/trip";
 import type { ItineraryDraft, ItineraryRow } from "@/features/trip";
-import type { ScheduleType } from "@/types";
+import {
+  PREFERENCE_KEYS,
+  PREFERENCE_LABELS,
+  PREFERENCE_SCALE_HINTS,
+  defaultPreferenceVector,
+} from "@/features/participant/participant";
+import type { ExperienceProfile, PreferenceKey, ScheduleType } from "@/types";
 
 let rowSeq = 0;
 const newRow = (date: string, time = "10:00"): ItineraryRow => ({
@@ -40,6 +47,7 @@ export function TripCreateForm() {
   const [endDate, setEndDate] = useState("");
   const [rows, setRows] = useState<ItineraryRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [tripPreference, setTripPreference] = useState<ExperienceProfile>(defaultPreferenceVector());
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -87,6 +95,7 @@ export function TripCreateForm() {
           placeName,
           scheduleType,
         })),
+        tripPreference,
       });
       router.push(`/trip/${tripId}`);
     } catch (err) {
@@ -233,6 +242,29 @@ export function TripCreateForm() {
           </>
         )}
       </fieldset>
+
+      <details className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+        <summary className="cursor-pointer text-sm font-medium">
+          이번 여행은 어떤 여행인가요? <span className="font-normal text-zinc-500">(선택)</span>
+        </summary>
+        <div className="mt-3 flex flex-col gap-4">
+          <p className="text-xs text-zinc-500">
+            평소 취향이 아니라 <strong>이번 여행</strong>에서 무엇을 중요하게 생각하는지를 알려주세요.
+            건너뛰어도 여행은 정상적으로 만들어져요. 1 {PREFERENCE_SCALE_HINTS[1]} · 5{" "}
+            {PREFERENCE_SCALE_HINTS[5]} · 10 {PREFERENCE_SCALE_HINTS[10]}
+          </p>
+          {PREFERENCE_KEYS.map((key) => (
+            <div key={key} className="flex flex-col gap-1.5">
+              <span className="text-sm">{PREFERENCE_LABELS[key]}</span>
+              <PreferenceScale
+                value={tripPreference[key]}
+                onChange={(v) => setTripPreference((p) => ({ ...p, [key as PreferenceKey]: v }))}
+                label={PREFERENCE_LABELS[key]}
+              />
+            </div>
+          ))}
+        </div>
+      </details>
 
       {errors.length > 0 && (
         <ul className="flex flex-col gap-1 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">

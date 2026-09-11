@@ -7,12 +7,22 @@
  * random — same facts always produce the same explanation.
  */
 import type { ExplanationFacts, SlotFact } from "./explanationFacts";
-import type { ReplanExplanation } from "./explanationSchema";
+import { MAX_PLACE_DESCRIPTION_LENGTH, type PlaceDescription, type ReplanExplanation } from "./explanationSchema";
 
 /** A component counts as "high" for fallback wording at/above this (0..100 scale) — same spirit as STEP 9's own component scale, kept separate as its own named constant since this is prose-selection, not scoring. */
 export const FALLBACK_HIGH_THRESHOLD = 70;
 /** travelBurden counts as "low" at/below this. */
 export const FALLBACK_LOW_BURDEN_THRESHOLD = 30;
+
+/** No LLM rewrite available — the real TourAPI overview text itself, just truncated to fit. Still 100% grounded: it's the source data verbatim. */
+function fallbackPlaceDescriptions(changed: readonly SlotFact[]): PlaceDescription[] {
+  return changed
+    .filter((s) => s.placeOverviewSnippet !== undefined)
+    .map((s) => ({
+      itineraryOrder: s.itineraryOrder,
+      description: s.placeOverviewSnippet!.slice(0, MAX_PLACE_DESCRIPTION_LENGTH),
+    }));
+}
 
 function slotReasonsFor(fact: SlotFact): string[] {
   const reasons: string[] = [];
@@ -49,6 +59,7 @@ export function buildFallbackExplanation(facts: ExplanationFacts): ReplanExplana
       reasons: [],
       cautions: [],
       slotReasons: [],
+      placeDescriptions: [],
     };
   }
 
@@ -65,5 +76,6 @@ export function buildFallbackExplanation(facts: ExplanationFacts): ReplanExplana
       itineraryOrder: s.itineraryOrder,
       reason: slotReasonsFor(s)[0] ?? "현재보다 더 적합한 대안으로 평가되었습니다.",
     })),
+    placeDescriptions: fallbackPlaceDescriptions(changed),
   };
 }

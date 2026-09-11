@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { PreferenceScale } from "@/components/shared/PreferenceScale";
 import {
   INDOOR_OUTDOOR,
   INDOOR_OUTDOOR_LABELS,
@@ -10,8 +11,6 @@ import {
   PACE_LABELS,
   PREFERENCE_KEYS,
   PREFERENCE_LABELS,
-  PREFERENCE_MAX,
-  PREFERENCE_MIN,
   PREFERENCE_SCALE_HINTS,
   defaultPreferenceVector,
   validateJoinInput,
@@ -251,7 +250,7 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
           {PREFERENCE_KEYS.map((key) => (
             <div key={key} className="flex flex-col gap-1.5">
               <span className="text-sm">{PREFERENCE_LABELS[key]}</span>
-              <Scale
+              <PreferenceScale
                 value={prefs[key]}
                 onChange={(v) => setPrefs((p) => ({ ...p, [key as PreferenceKey]: v }))}
                 label={PREFERENCE_LABELS[key]}
@@ -296,41 +295,6 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
               : "여행 참여하기"}
         </button>
       </form>
-    </div>
-  );
-}
-
-function Scale({
-  value,
-  onChange,
-  label,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  label: string;
-}) {
-  const steps = Array.from(
-    { length: PREFERENCE_MAX - PREFERENCE_MIN + 1 },
-    (_, i) => PREFERENCE_MIN + i,
-  );
-  return (
-    <div className="grid grid-cols-5 gap-1.5">
-      {steps.map((n) => (
-        <button
-          key={n}
-          type="button"
-          aria-label={`${label} ${n}점`}
-          aria-pressed={value === n}
-          onClick={() => onChange(n)}
-          className={`min-h-11 rounded-lg border text-sm ${
-            value === n
-              ? "border-zinc-900 bg-zinc-900 font-medium text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-              : "border-zinc-300 text-zinc-500 dark:border-zinc-700"
-          }`}
-        >
-          {n}
-        </button>
-      ))}
     </div>
   );
 }
