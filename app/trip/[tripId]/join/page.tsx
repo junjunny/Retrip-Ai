@@ -40,20 +40,20 @@ export default function JoinPage({
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-      <h1 className="text-xl font-semibold tracking-tight">여행에 참여하기</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">여행에 참여하기</h1>
       <div className="mt-6">
         {state.status === "loading" && (
-          <p className="text-sm text-zinc-500">여행 정보를 불러오는 중...</p>
+          <p className="text-sm text-ink-muted">여행 정보를 불러오는 중...</p>
         )}
         {state.status === "error" && (
           <div className="flex flex-col items-start gap-3">
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <p className="text-sm text-ink">
               여행 정보를 불러오지 못했습니다.
             </p>
             <button
               type="button"
               onClick={() => setReloadKey((k) => k + 1)}
-              className="min-h-11 rounded-lg border border-zinc-300 px-4 text-sm dark:border-zinc-700"
+              className="min-h-11 rounded-xl border border-line px-4 text-sm text-ink"
             >
               다시 시도
             </button>
@@ -61,10 +61,10 @@ export default function JoinPage({
         )}
         {state.status === "not-found" && (
           <div className="flex flex-col items-start gap-3">
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <p className="text-sm text-ink">
               여행을 찾을 수 없습니다. 초대 링크를 다시 확인해주세요.
             </p>
-            <Link href="/" className="text-sm text-zinc-500 hover:underline">
+            <Link href="/" className="text-sm text-ink-muted hover:text-brand hover:underline">
               Re:Trip AI 홈으로
             </Link>
           </div>

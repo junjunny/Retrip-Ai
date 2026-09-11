@@ -24,3 +24,26 @@ export function allowRequest(key: string, cooldownMs: number): boolean {
   lastHitAt.set(key, now);
   return true;
 }
+
+/**
+ * Request coalescing (STEP 14 bug fix): two callers for the same `key`
+ * arriving while the first is still in flight share ONE underlying call
+ * instead of the second being rejected by `allowRequest`'s cooldown.
+ *
+ * This is a real bug, not a hypothetical: React Strict Mode (dev only) double
+ * -invokes an effect on mount, so a component that fetches once on mount can
+ * genuinely issue two near-simultaneous requests for the same resource — the
+ * second used to be silently rate-limited to an empty result even on a
+ * user's very first page load. Coalescing fixes the root cause (duplicate
+ * concurrent work) rather than loosening the cooldown, which wouldn't help
+ * (two requests microseconds apart are within any nonzero cooldown).
+ */
+const inFlight = new Map<string, Promise<unknown>>();
+
+export async function singleFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const existing = inFlight.get(key) as Promise<T> | undefined;
+  if (existing) return existing;
+  const promise = run().finally(() => inFlight.delete(key));
+  inFlight.set(key, promise);
+  return promise;
+}

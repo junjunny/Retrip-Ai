@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored StyleSeed skill scripts (STEP 14) — third-party tooling, not project code.
+    ".agents/**",
   ]),
 ]);
 

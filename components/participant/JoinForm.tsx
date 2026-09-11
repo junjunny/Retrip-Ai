@@ -159,14 +159,14 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
   }
 
   if (phase === "loading") {
-    return <p className="text-sm text-zinc-500">참여 정보를 확인하는 중...</p>;
+    return <p className="text-sm text-ink-muted">참여 정보를 확인하는 중...</p>;
   }
 
   if (phase === "done") {
     return (
       <div className="flex flex-col gap-4">
-        <p className="text-lg font-semibold">참여가 완료되었습니다.</p>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-lg font-semibold text-ink">참여가 완료되었습니다.</p>
+        <p className="text-sm text-ink-muted">
           {nickname}님의 여행 선호도가 저장되었어요.
         </p>
         <div className="flex gap-3">
@@ -176,13 +176,13 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
               setAlreadyJoined(true);
               setPhase("form");
             }}
-            className="min-h-11 rounded-lg border border-zinc-300 px-4 text-sm dark:border-zinc-700"
+            className="min-h-11 rounded-xl border border-line px-4 text-sm text-ink"
           >
             응답 수정하기
           </button>
           <Link
             href={`/trip/${tripId}`}
-            className="min-h-11 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+            className="flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink"
           >
             여행 정보 보기
           </Link>
@@ -195,17 +195,17 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-1 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-900">
-        <p className="text-xs font-medium text-zinc-500">여행</p>
-        <p className="font-semibold">{trip.title}</p>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <section className="flex flex-col gap-1 rounded-xl border border-line bg-surface-alt p-4">
+        <p className="text-xs font-medium text-ink-muted">여행</p>
+        <p className="font-semibold text-ink">{trip.title}</p>
+        <p className="text-sm text-ink-muted">
           {trip.destination} · {fmtDate(trip.startDate)} ~ {fmtDate(trip.endDate)}
         </p>
         {itinerary.length > 0 && (
-          <ul className="mt-2 flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <ul className="mt-2 flex flex-col gap-1 text-sm text-ink-muted">
             {itinerary.map((it) => (
               <li key={it.order} className="flex gap-2">
-                <span className="tabular-nums text-zinc-500">{it.time}</span>
+                <span className="tabular-nums text-ink-muted">{it.time}</span>
                 <span>{it.placeName}</span>
               </li>
             ))}
@@ -214,12 +214,12 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
       </section>
 
       {alreadyJoined && (
-        <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+        <p className="rounded-xl bg-accent/10 p-3 text-sm text-accent">
           이미 참여하셨습니다. 아래에서 응답을 수정할 수 있어요.
         </p>
       )}
       {notice && (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+        <p className="rounded-xl bg-warning/10 p-3 text-sm text-warning">
           {notice}
         </p>
       )}
@@ -232,24 +232,24 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
         }}
       >
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">닉네임</span>
+          <span className="text-sm font-medium text-ink">닉네임</span>
           <input
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder="준희"
-            className="w-full min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-200"
+            className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none focus:border-brand"
           />
         </label>
 
         <fieldset className="flex flex-col gap-4">
-          <legend className="text-sm font-medium">어떤 여행을 좋아하시나요?</legend>
-          <p className="text-xs text-zinc-500">
+          <legend className="text-sm font-medium text-ink">어떤 여행을 좋아하시나요?</legend>
+          <p className="text-xs text-ink-muted">
             1 {PREFERENCE_SCALE_HINTS[1]} · 5 {PREFERENCE_SCALE_HINTS[5]} · 10{" "}
             {PREFERENCE_SCALE_HINTS[10]}
           </p>
           {PREFERENCE_KEYS.map((key) => (
             <div key={key} className="flex flex-col gap-1.5">
-              <span className="text-sm">{PREFERENCE_LABELS[key]}</span>
+              <span className="text-sm text-ink">{PREFERENCE_LABELS[key]}</span>
               <PreferenceScale
                 value={prefs[key]}
                 onChange={(v) => setPrefs((p) => ({ ...p, [key as PreferenceKey]: v }))}
@@ -276,7 +276,7 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
         />
 
         {errors.length > 0 && (
-          <ul className="flex flex-col gap-1 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          <ul className="flex flex-col gap-1 rounded-xl bg-danger/10 p-3 text-sm text-danger">
             {errors.map((msg) => (
               <li key={msg}>{msg}</li>
             ))}
@@ -286,7 +286,7 @@ export function JoinForm({ tripId, trip }: { tripId: string; trip: Trip }) {
         <button
           type="submit"
           disabled={submitting}
-          className="min-h-12 rounded-lg bg-zinc-900 px-4 text-base font-medium text-white disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900"
+          className="min-h-12 rounded-xl bg-brand px-4 text-base font-medium text-brand-ink disabled:opacity-60"
         >
           {submitting
             ? "저장하는 중..."
@@ -312,7 +312,7 @@ function Choice<T extends string>({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="text-sm font-medium">{legend}</legend>
+      <legend className="text-sm font-medium text-ink">{legend}</legend>
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => (
           <button
@@ -320,10 +320,10 @@ function Choice<T extends string>({
             type="button"
             aria-pressed={value === opt.value}
             onClick={() => onChange(opt.value)}
-            className={`min-h-11 rounded-lg border px-4 text-sm ${
+            className={`min-h-11 rounded-xl border px-4 text-sm transition-colors ${
               value === opt.value
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                ? "border-brand bg-brand text-brand-ink"
+                : "border-line text-ink-muted"
             }`}
           >
             {opt.label}

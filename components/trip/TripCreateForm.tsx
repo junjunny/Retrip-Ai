@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertCircle, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -14,7 +15,6 @@ import type { ItineraryDraft, ItineraryRow } from "@/features/trip";
 import {
   PREFERENCE_KEYS,
   PREFERENCE_LABELS,
-  PREFERENCE_SCALE_HINTS,
   defaultPreferenceVector,
 } from "@/features/participant/participant";
 import type { ExperienceProfile, PreferenceKey, ScheduleType } from "@/types";
@@ -29,7 +29,7 @@ const newRow = (date: string, time = "10:00"): ItineraryRow => ({
 });
 
 const fieldBase =
-  "min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-200";
+  "min-h-11 rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none transition-colors focus:border-brand";
 const fieldClass = `${fieldBase} w-full`;
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -119,14 +119,14 @@ export function TripCreateForm() {
 
   return (
     <form
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-6"
       onSubmit={(e) => {
         e.preventDefault();
         void handleSubmit();
       }}
     >
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">여행 제목</span>
+        <span className="text-sm font-medium text-ink">여행 제목</span>
         <input
           className={fieldClass}
           value={title}
@@ -136,7 +136,7 @@ export function TripCreateForm() {
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">여행 지역</span>
+        <span className="text-sm font-medium text-ink">여행 지역</span>
         <input
           className={fieldClass}
           value={destination}
@@ -147,7 +147,7 @@ export function TripCreateForm() {
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <label className="flex flex-1 flex-col gap-1.5">
-          <span className="text-sm font-medium">출발일</span>
+          <span className="text-sm font-medium text-ink">출발일</span>
           <input
             type="date"
             className={fieldClass}
@@ -156,7 +156,7 @@ export function TripCreateForm() {
           />
         </label>
         <label className="flex flex-1 flex-col gap-1.5">
-          <span className="text-sm font-medium">귀가일</span>
+          <span className="text-sm font-medium text-ink">귀가일</span>
           <input
             type="date"
             className={fieldClass}
@@ -168,10 +168,10 @@ export function TripCreateForm() {
       </div>
 
       <fieldset className="flex min-w-0 flex-col gap-3">
-        <legend className="text-sm font-medium">여행 일정</legend>
+        <legend className="text-sm font-medium text-ink">여행 일정</legend>
 
         {days.length === 0 ? (
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-ink-muted">
             출발일과 귀가일을 먼저 선택하면 날짜별로 일정을 추가할 수 있어요.
           </p>
         ) : (
@@ -183,10 +183,10 @@ export function TripCreateForm() {
                     key={d}
                     type="button"
                     onClick={() => setSelectedDate(d)}
-                    className={`min-h-10 shrink-0 rounded-lg border px-3 text-sm ${
+                    className={`min-h-11 shrink-0 rounded-full border px-3.5 text-sm transition-colors ${
                       d === activeDate
-                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                        ? "border-brand bg-brand text-brand-ink"
+                        : "border-line text-ink-muted"
                     }`}
                   >
                     Day {i + 1} · {dateTab(d)}
@@ -196,7 +196,7 @@ export function TripCreateForm() {
             )}
 
             {dayRows.length === 0 && (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-ink-muted">
                 이 날의 일정이 아직 없어요.
               </p>
             )}
@@ -204,7 +204,7 @@ export function TripCreateForm() {
             {dayRows.map((row) => (
               <div
                 key={row.key}
-                className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800"
+                className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-3"
               >
                 <div className="flex items-center gap-2">
                   <input
@@ -225,9 +225,9 @@ export function TripCreateForm() {
                     type="button"
                     onClick={() => removeRow(row.key)}
                     aria-label="일정 삭제"
-                    className="min-h-11 shrink-0 rounded-lg border border-zinc-300 px-3 text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                    className="flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-line px-3 text-ink-muted transition-colors hover:text-danger"
                   >
-                    삭제
+                    <X className="size-4" aria-hidden />
                   </button>
                 </div>
                 <ScheduleTypeToggle
@@ -240,27 +240,29 @@ export function TripCreateForm() {
             <button
               type="button"
               onClick={addRow}
-              className="min-h-11 self-start rounded-lg border border-dashed border-zinc-400 px-4 text-sm text-zinc-700 dark:border-zinc-600 dark:text-zinc-300"
+              className="flex min-h-11 items-center gap-1.5 self-start rounded-xl border border-dashed border-line px-4 text-sm text-ink-muted transition-colors hover:border-brand hover:text-brand"
             >
-              + 일정 추가
+              <Plus className="size-4" aria-hidden />
+              일정 추가
             </button>
           </>
         )}
       </fieldset>
 
-      <details className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-        <summary className="cursor-pointer text-sm font-medium">
-          이번 여행은 어떤 여행인가요? <span className="font-normal text-zinc-500">(선택)</span>
+      <details className="group rounded-xl border border-line bg-surface-alt p-3.5 open:pb-4">
+        <summary className="flex cursor-pointer list-none items-baseline justify-between gap-2 text-sm font-medium text-ink marker:content-none">
+          이번 여행은 어떤 여행인가요?
+          <span className="shrink-0 text-xs font-normal text-ink-muted">선택사항</span>
         </summary>
         <div className="mt-3 flex flex-col gap-4">
-          <p className="text-xs text-zinc-500">
-            평소 취향이 아니라 <strong>이번 여행</strong>에서 무엇을 중요하게 생각하는지를 알려주세요.
-            건너뛰어도 여행은 정상적으로 만들어져요. 1 {PREFERENCE_SCALE_HINTS[1]} · 5{" "}
-            {PREFERENCE_SCALE_HINTS[5]} · 10 {PREFERENCE_SCALE_HINTS[10]}
+          <p className="text-xs leading-relaxed text-ink-muted">
+            나중에 설정하지 않아도 여행은 그대로 만들어져요. 평소 취향이 아니라{" "}
+            <strong className="font-medium text-ink">이번 여행</strong>에서 무엇을 중요하게
+            생각하는지만 알려주시면, 여행 시작 전 짧은 안내에 반영돼요.
           </p>
           {PREFERENCE_KEYS.map((key) => (
             <div key={key} className="flex flex-col gap-1.5">
-              <span className="text-sm">{PREFERENCE_LABELS[key]}</span>
+              <span className="text-sm text-ink">{PREFERENCE_LABELS[key]}</span>
               <PreferenceScale
                 value={tripPreference[key]}
                 onChange={(v) => {
@@ -275,17 +277,20 @@ export function TripCreateForm() {
       </details>
 
       {errors.length > 0 && (
-        <ul className="flex flex-col gap-1 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          {errors.map((msg) => (
-            <li key={msg}>{msg}</li>
-          ))}
-        </ul>
+        <div className="flex gap-2 rounded-xl bg-danger/10 p-3 text-sm text-danger">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <ul className="flex flex-col gap-1">
+            {errors.map((msg) => (
+              <li key={msg}>{msg}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-12 rounded-lg bg-zinc-900 px-4 text-base font-medium text-white disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900"
+        className="min-h-12 rounded-xl bg-brand px-4 text-base font-medium text-brand-ink transition-opacity disabled:opacity-60"
       >
         {submitting ? "여행을 만들고 있습니다..." : "여행 만들기"}
       </button>
@@ -313,10 +318,10 @@ function ScheduleTypeToggle({
           type="button"
           aria-pressed={value === v}
           onClick={() => onChange(v)}
-          className={`min-h-9 flex-1 rounded-lg border px-3 text-sm ${
+          className={`min-h-11 flex-1 rounded-lg border px-3 text-sm transition-colors ${
             value === v
-              ? "border-zinc-900 bg-zinc-100 font-medium dark:border-zinc-100 dark:bg-zinc-800"
-              : "border-zinc-300 text-zinc-500 dark:border-zinc-700"
+              ? "border-brand bg-brand/10 font-medium text-brand"
+              : "border-line text-ink-muted"
           }`}
         >
           {label}

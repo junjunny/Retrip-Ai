@@ -94,10 +94,11 @@ export function TripMap({
           polylineRef.current.setLatLngs(latLngs);
         } else {
           polylineRef.current = L.polyline(latLngs, {
-            color: "#2563eb",
+            color: "#31628b",
             weight: 4,
-            opacity: 0.8,
-            dashArray: "6 6",
+            opacity: 0.85,
+            dashArray: "1 8",
+            lineCap: "round",
           }).addTo(map);
         }
       } else if (polylineRef.current) {
@@ -134,7 +135,7 @@ export function TripMap({
 
   if (markers.length === 0) {
     return (
-      <div className="flex h-56 w-full items-center justify-center rounded-xl border border-dashed border-zinc-300 text-sm text-zinc-500 dark:border-zinc-700">
+      <div className="flex h-56 w-full items-center justify-center rounded-xl border border-dashed border-line text-sm text-ink-muted">
         위치가 확인된 장소가 아직 없어요.
       </div>
     );
@@ -145,15 +146,15 @@ export function TripMap({
       ref={elRef}
       role="application"
       aria-label="여행 장소 지도"
-      className="h-56 w-full overflow-hidden rounded-xl border border-zinc-200 sm:h-72 dark:border-zinc-800"
+      className="h-56 w-full overflow-hidden rounded-xl border border-line sm:h-72"
     />
   );
 }
 
 function badgeClass(active: boolean, confirmed: boolean): string {
   const base =
-    "flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-semibold shadow";
-  if (active) return `${base} border-white bg-blue-600 text-white`;
-  if (confirmed) return `${base} border-white bg-zinc-900 text-white`;
-  return `${base} border-white bg-zinc-400 text-white`;
+    "flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface text-xs font-semibold shadow-sm";
+  if (active) return `${base} bg-accent text-accent-ink`;
+  if (confirmed) return `${base} bg-brand text-brand-ink`;
+  return `${base} bg-line text-ink`;
 }

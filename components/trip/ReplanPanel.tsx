@@ -1,5 +1,18 @@
 "use client";
 
+import {
+  ArrowRight,
+  Bus,
+  Car,
+  Footprints,
+  ImageOff,
+  Lightbulb,
+  MapPin,
+  Navigation,
+  Search,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { useState } from "react";
 
 import type { ItineraryItem, MobilityMode, MobilityOption, RoutePolylinePoint } from "@/types";
@@ -51,7 +64,7 @@ interface ReplanEvent {
 type Phase = "idle" | "loading" | "preview" | "applying" | "applied" | "error";
 type LatLng = { latitude: number; longitude: number };
 
-const MODE_ICON: Record<MobilityMode, string> = { WALK: "🚶", DRIVING: "🚗", TRANSIT: "🚌" };
+const MODE_ICON: Record<MobilityMode, typeof Footprints> = { WALK: Footprints, DRIVING: Car, TRANSIT: Bus };
 const MODE_LABEL: Record<MobilityMode, string> = { WALK: "도보", DRIVING: "자동차", TRANSIT: "대중교통" };
 
 const fmtEventDate = (yyyymmdd: string) => `${Number(yyyymmdd.slice(4, 6))}/${Number(yyyymmdd.slice(6, 8))}`;
@@ -186,7 +199,7 @@ export function ReplanPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium text-zinc-500">Re:Plan</h2>
+      <h2 className="text-sm font-medium text-ink-muted">Re:Plan</h2>
 
       {phase !== "preview" && (
         <>
@@ -199,11 +212,14 @@ export function ReplanPanel({
             onPick={setOrigin}
             onClear={() => setOrigin(null)}
           />
+          {/* This button never changes color, size, or animation based on Travel
+              State or any other internal signal (STEP 13/14 constraint) — one
+              calm, identical CTA every time. */}
           <button
             type="button"
             onClick={startReplan}
             disabled={phase === "loading"}
-            className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 text-sm disabled:opacity-60 dark:border-zinc-700"
+            className="min-h-11 self-start rounded-xl border border-line px-4 text-sm text-ink transition-opacity disabled:opacity-60"
           >
             {phase === "loading" ? "확인하는 중..." : "Re:Plan"}
           </button>
@@ -211,31 +227,34 @@ export function ReplanPanel({
       )}
 
       {phase === "applied" && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">적용되었습니다.</p>
+        <p className="text-sm text-ink-muted">적용되었습니다.</p>
       )}
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {phase === "preview" && preview && (
-        <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-4">
           {preview.slots.length === 0 ? (
-            <p className="text-sm text-zinc-500">지금 다시 계획할 수 있는 일정이 없어요.</p>
+            <p className="text-sm text-ink-muted">지금 다시 계획할 수 있는 일정이 없어요.</p>
           ) : (
             <>
               {explanation && (
-                <div className="flex flex-col gap-2 border-b border-zinc-200 pb-3 dark:border-zinc-800">
-                  <p className="font-medium">{explanation.title}</p>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">{explanation.summary}</p>
+                <div className="flex flex-col gap-2 border-b border-line pb-3">
+                  <p className="font-medium text-ink">{explanation.title}</p>
+                  <p className="text-sm text-ink-muted">{explanation.summary}</p>
                   {explanation.reasons.length > 0 && (
-                    <ul className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+                    <ul className="flex flex-col gap-1 text-sm text-ink-muted">
                       {explanation.reasons.map((r, i) => (
                         <li key={i}>· {r}</li>
                       ))}
                     </ul>
                   )}
                   {explanation.cautions.length > 0 && (
-                    <ul className="flex flex-col gap-1 text-sm text-amber-700 dark:text-amber-400">
+                    <ul className="flex flex-col gap-1 text-sm text-warning">
                       {explanation.cautions.map((c, i) => (
-                        <li key={i}>⚠ {c}</li>
+                        <li key={i} className="flex items-start gap-1.5">
+                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                          {c}
+                        </li>
                       ))}
                     </ul>
                   )}
@@ -247,8 +266,8 @@ export function ReplanPanel({
                   if (s.action === "KEEP") {
                     return (
                       <li key={s.itineraryOrder} className="text-sm">
-                        <span className="tabular-nums text-zinc-500">{s.current.time}</span>{" "}
-                        <span>{s.current.placeName} · 기존 유지</span>
+                        <span className="tabular-nums text-ink-muted">{s.current.time}</span>{" "}
+                        <span className="text-ink">{s.current.placeName} · 기존 유지</span>
                       </li>
                     );
                   }
@@ -260,7 +279,7 @@ export function ReplanPanel({
                   return (
                     <li
                       key={s.itineraryOrder}
-                      className="flex flex-col gap-2 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800"
+                      className="flex flex-col gap-2 overflow-hidden rounded-xl border border-line"
                     >
                       {s.proposed?.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- external TourAPI image, no Next/Image domain config for arbitrary hosts
@@ -270,22 +289,27 @@ export function ReplanPanel({
                           className="h-40 w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-16 items-center justify-center bg-zinc-100 text-xs text-zinc-400 dark:bg-zinc-800">
+                        <div className="flex h-16 items-center justify-center gap-1.5 bg-surface-alt text-xs text-ink-muted">
+                          <ImageOff className="size-3.5" aria-hidden />
                           이미지 없음
                         </div>
                       )}
 
-                      <div className="flex flex-col gap-2 p-3">
-                        <div className="text-sm">
-                          <span className="tabular-nums text-zinc-500">{s.current.time}</span>{" "}
-                          {s.current.placeName} →{" "}
-                          <span className="font-medium">{s.proposed?.placeName}</span>
+                      <div className="flex flex-col gap-2.5 p-3">
+                        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                          <span className="tabular-nums text-ink-muted">{s.current.time}</span>
+                          <span className="text-ink-muted">{s.current.placeName}</span>
+                          <ArrowRight className="size-3.5 shrink-0 text-ink-muted" aria-hidden />
+                          <span className="font-medium text-ink">{s.proposed?.placeName}</span>
                         </div>
                         {s.proposed?.address && (
-                          <p className="text-xs text-zinc-500">{s.proposed.address}</p>
+                          <p className="flex items-center gap-1 text-xs text-ink-muted">
+                            <MapPin className="size-3 shrink-0" aria-hidden />
+                            {s.proposed.address}
+                          </p>
                         )}
                         {description && (
-                          <p className="text-sm text-zinc-700 dark:text-zinc-300">{description.description}</p>
+                          <p className="text-sm leading-relaxed text-ink">{description.description}</p>
                         )}
 
                         <MobilitySection
@@ -296,12 +320,16 @@ export function ReplanPanel({
                         />
 
                         {event && (
-                          <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                            ✨ 지금 진행 중인 행사 · {fmtEventDate(event.startDate)} ~ {fmtEventDate(event.endDate)}
+                          <p className="flex items-center gap-1.5 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs text-warning">
+                            <Sparkles className="size-3.5 shrink-0" aria-hidden />
+                            지금 진행 중인 행사 · {fmtEventDate(event.startDate)} ~ {fmtEventDate(event.endDate)}
                           </p>
                         )}
                         {reason && (
-                          <p className="text-xs text-zinc-500">💡 {reason.reason}</p>
+                          <p className="flex items-start gap-1.5 text-xs text-ink-muted">
+                            <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-brand" aria-hidden />
+                            {reason.reason}
+                          </p>
                         )}
                       </div>
                     </li>
@@ -317,7 +345,7 @@ export function ReplanPanel({
                 type="button"
                 onClick={applyPlan}
                 disabled={applying}
-                className="min-h-11 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900"
+                className="min-h-11 flex-1 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink transition-opacity disabled:opacity-60"
               >
                 {applying ? "적용하는 중..." : "이 계획 적용"}
               </button>
@@ -325,7 +353,7 @@ export function ReplanPanel({
                 type="button"
                 onClick={keepExisting}
                 disabled={applying}
-                className="min-h-11 rounded-lg border border-zinc-300 px-4 text-sm disabled:opacity-60 dark:border-zinc-700"
+                className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm text-ink disabled:opacity-60"
               >
                 기존 일정 유지
               </button>
@@ -334,7 +362,7 @@ export function ReplanPanel({
             <button
               type="button"
               onClick={keepExisting}
-              className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 text-sm dark:border-zinc-700"
+              className="min-h-11 self-start rounded-xl border border-line px-4 text-sm text-ink"
             >
               닫기
             </button>
@@ -363,36 +391,39 @@ function MobilitySection({
 }) {
   if (mobility.length === 0) return null;
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg bg-zinc-50 p-2.5 dark:bg-zinc-800/60">
-      <p className="text-xs font-medium text-zinc-500">이동 정보</p>
+    <div className="flex flex-col gap-1 rounded-lg bg-surface-alt p-2.5">
+      <p className="text-xs font-medium text-ink-muted">이동 정보</p>
       <div className="flex flex-col gap-1">
-        {mobility.map((m) => (
-          <button
-            key={m.mode}
-            type="button"
-            disabled={!m.available}
-            onClick={() => onSelect(m.mode)}
-            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
-              !m.available
-                ? "cursor-not-allowed text-zinc-400"
-                : selected === m.mode
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            }`}
-          >
-            <span>{MODE_ICON[m.mode]}</span>
-            <span className="w-14 shrink-0">{MODE_LABEL[m.mode]}</span>
-            {m.available ? (
-              <span className="tabular-nums">
-                {m.durationMinutes}분 · {fmtDistance(m.distanceMeters!)}
-                {m.trafficLabel ? ` · ${m.trafficLabel}` : ""}
-                {m.transferCount != null ? ` · ${m.transferCount}회 환승` : ""}
-              </span>
-            ) : (
-              <span className="text-xs">{m.failureReason ?? "현재 제공 불가"}</span>
-            )}
-          </button>
-        ))}
+        {mobility.map((m) => {
+          const Icon = MODE_ICON[m.mode];
+          return (
+            <button
+              key={m.mode}
+              type="button"
+              disabled={!m.available}
+              onClick={() => onSelect(m.mode)}
+              className={`flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                !m.available
+                  ? "cursor-not-allowed text-ink-muted/60"
+                  : selected === m.mode
+                    ? "bg-brand text-brand-ink"
+                    : "text-ink hover:bg-surface"
+              }`}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden />
+              <span className="w-14 shrink-0">{MODE_LABEL[m.mode]}</span>
+              {m.available ? (
+                <span className="tabular-nums">
+                  {m.durationMinutes}분 · {fmtDistance(m.distanceMeters!)}
+                  {m.trafficLabel ? ` · ${m.trafficLabel}` : ""}
+                  {m.transferCount != null ? ` · ${m.transferCount}회 환승` : ""}
+                </span>
+              ) : (
+                <span className="text-xs">{m.failureReason ?? "현재 제공 불가"}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -417,17 +448,18 @@ function OriginPicker({
   onClear: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <p className="text-xs text-zinc-500">
-        출발지 <span className="text-zinc-400">(선택 — 알려주시면 실제 이동 정보를 확인할 수 있어요)</span>
+    <div className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt p-3 text-sm">
+      <p className="flex items-center gap-1.5 text-xs text-ink-muted">
+        <Navigation className="size-3.5" aria-hidden />
+        출발지 <span className="text-ink-muted/70">(선택 — 알려주시면 실제 이동 정보를 확인할 수 있어요)</span>
       </p>
-      <p className="text-zinc-700 dark:text-zinc-300">{origin ? origin.label : "선택 안 함"}</p>
+      <p className="text-ink">{origin ? origin.label : "선택 안 함"}</p>
       <div className="flex flex-wrap gap-2">
         {lastCompleted && (
           <button
             type="button"
             onClick={() => onPick({ ...lastCompleted, label: `마지막 완료 장소 · ${lastCompleted.placeName}` })}
-            className="min-h-9 rounded-lg border border-zinc-300 px-3 text-xs dark:border-zinc-700"
+            className="min-h-11 rounded-lg border border-line bg-surface px-3 text-xs text-ink"
           >
             마지막 완료 장소에서 출발
           </button>
@@ -435,7 +467,7 @@ function OriginPicker({
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="min-h-9 rounded-lg border border-zinc-300 px-3 text-xs dark:border-zinc-700"
+          className="min-h-11 rounded-lg border border-line bg-surface px-3 text-xs text-ink"
         >
           직접 장소 선택
         </button>
@@ -443,7 +475,7 @@ function OriginPicker({
           <button
             type="button"
             onClick={onClear}
-            className="min-h-9 rounded-lg border border-zinc-300 px-3 text-xs text-zinc-500 dark:border-zinc-700"
+            className="min-h-11 rounded-lg border border-line px-3 text-xs text-ink-muted"
           >
             선택 해제
           </button>
@@ -506,7 +538,7 @@ function OriginSearch({
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+    <div className="flex flex-col gap-2 border-t border-line pt-2">
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -518,14 +550,14 @@ function OriginSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="출발할 장소 이름"
-          className="min-h-9 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-200"
+          className="min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-sm text-ink outline-none focus:border-brand"
         />
-        <button type="submit" className="min-h-9 shrink-0 rounded-lg border border-zinc-300 px-3 text-xs dark:border-zinc-700">
-          검색
+        <button type="submit" aria-label="검색" className="flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-line bg-surface px-3 text-ink">
+          <Search className="size-3.5" aria-hidden />
         </button>
       </form>
-      {state === "loading" && <p className="text-xs text-zinc-500">찾는 중...</p>}
-      {state === "error" && <p className="text-xs text-red-600 dark:text-red-400">찾지 못했어요. 다시 검색해주세요.</p>}
+      {state === "loading" && <p className="text-xs text-ink-muted">찾는 중...</p>}
+      {state === "error" && <p className="text-xs text-danger">찾지 못했어요. 다시 검색해주세요.</p>}
       {results.length > 0 && (
         <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto">
           {results.map((r) => (
@@ -533,10 +565,10 @@ function OriginSearch({
               <button
                 type="button"
                 onClick={() => onPick({ latitude: r.latitude, longitude: r.longitude }, r.name)}
-                className="flex w-full flex-col items-start rounded-md border border-zinc-200 px-2 py-1.5 text-left text-xs dark:border-zinc-700"
+                className="flex w-full flex-col items-start rounded-md border border-line bg-surface px-2 py-1.5 text-left text-xs"
               >
-                <span className="font-medium">{r.name}</span>
-                {r.address && <span className="text-zinc-500">{r.address}</span>}
+                <span className="font-medium text-ink">{r.name}</span>
+                {r.address && <span className="text-ink-muted">{r.address}</span>}
               </button>
             </li>
           ))}

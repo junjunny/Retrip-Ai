@@ -30,10 +30,10 @@ export function PreferenceScale({
           aria-label={`${label} ${n}점`}
           aria-pressed={value === n}
           onClick={() => onChange(n)}
-          className={`min-h-11 rounded-lg border text-sm ${
+          className={`min-h-11 rounded-lg border text-sm transition-colors ${
             value === n
-              ? "border-zinc-900 bg-zinc-900 font-medium text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-              : "border-zinc-300 text-zinc-500 dark:border-zinc-700"
+              ? "border-brand bg-brand font-medium text-brand-ink"
+              : "border-line text-ink-muted"
           }`}
         >
           {n}

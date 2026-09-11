@@ -11,9 +11,16 @@
  */
 import { generateMiniGuide } from "@/features/miniGuide/miniGuideService";
 import { getTripPreference } from "@/features/trip/tripAdminService";
-import { allowRequest } from "@/lib/rateLimit";
+import { allowRequest, singleFlight } from "@/lib/rateLimit";
 
-/** One LLM call per hit — a refresh-spamming user just gets `{ guide: null }` back (display-only, never a broken-looking error). */
+/**
+ * One LLM call per hit — a refresh-spamming user just gets `{ guide: null }`
+ * back (display-only, never a broken-looking error). `singleFlight` handles
+ * two near-simultaneous requests for the SAME trip (e.g. React Strict Mode's
+ * dev-only double effect invocation) by sharing one real call instead of the
+ * second being rejected by the cooldown below — a genuine concurrent-request
+ * bug, not just a hypothetical (STEP 14).
+ */
 const MINI_GUIDE_COOLDOWN_MS = 15_000;
 
 export async function GET(
@@ -22,18 +29,19 @@ export async function GET(
 ) {
   const { tripId } = await params;
 
-  if (!allowRequest(`mini-guide:${tripId}`, MINI_GUIDE_COOLDOWN_MS)) {
-    return Response.json({ guide: null });
-  }
-
-  try {
-    const tripPreference = await getTripPreference(tripId);
-    if (!tripPreference) return Response.json({ guide: null });
-    const guide = await generateMiniGuide(tripPreference);
-    return Response.json({ guide });
-  } catch (err) {
-    console.error("[api/trip/mini-guide]", err instanceof Error ? err.message : "unknown error");
-    // display-only content — a failure here should never look like a broken page
-    return Response.json({ guide: null });
-  }
+  const guide = await singleFlight(`mini-guide:${tripId}`, async () => {
+    if (!allowRequest(`mini-guide:${tripId}`, MINI_GUIDE_COOLDOWN_MS)) {
+      return null;
+    }
+    try {
+      const tripPreference = await getTripPreference(tripId);
+      if (!tripPreference) return null;
+      return await generateMiniGuide(tripPreference);
+    } catch (err) {
+      console.error("[api/trip/mini-guide]", err instanceof Error ? err.message : "unknown error");
+      // display-only content — a failure here should never look like a broken page
+      return null;
+    }
+  });
+  return Response.json({ guide });
 }

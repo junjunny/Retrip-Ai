@@ -51,18 +51,22 @@ export default function TripDetailPage({
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
       {state.status === "loading" && (
-        <p className="text-sm text-zinc-500">여행 정보를 불러오는 중...</p>
+        <div className="flex flex-col gap-4" aria-busy="true">
+          <div className="h-7 w-40 animate-pulse rounded-lg bg-surface-alt" />
+          <div className="h-4 w-24 animate-pulse rounded-lg bg-surface-alt" />
+          <div className="h-56 w-full animate-pulse rounded-xl bg-surface-alt" />
+        </div>
       )}
 
       {state.status === "error" && (
         <div className="flex flex-col items-start gap-3">
-          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          <p className="text-sm text-ink">
             여행 정보를 불러오지 못했습니다.
           </p>
           <button
             type="button"
             onClick={retry}
-            className="min-h-11 rounded-lg border border-zinc-300 px-4 text-sm dark:border-zinc-700"
+            className="min-h-11 rounded-xl border border-line px-4 text-sm text-ink"
           >
             다시 시도
           </button>
@@ -71,12 +75,12 @@ export default function TripDetailPage({
 
       {state.status === "not-found" && (
         <div className="flex flex-col items-start gap-3">
-          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          <p className="text-sm text-ink">
             여행을 찾을 수 없습니다.
           </p>
           <Link
             href="/trip/create"
-            className="min-h-11 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+            className="flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink"
           >
             새 여행 만들기
           </Link>
@@ -103,9 +107,9 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   return (
     <article className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{trip.title}</h1>
-        <p className="text-zinc-600 dark:text-zinc-400">{trip.destination}</p>
-        <p className="text-sm text-zinc-500">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{trip.title}</h1>
+        <p className="text-ink-muted">{trip.destination}</p>
+        <p className="text-sm text-ink-muted">
           {fmtDate(trip.startDate)} ~ {fmtDate(trip.endDate)}
         </p>
       </header>
@@ -113,11 +117,11 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
       <MiniGuide tripId={trip.tripId} />
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-500">여행 일정</h2>
+        <h2 className="text-sm font-medium text-ink-muted">여행 일정</h2>
         <ItineraryPlaces key={itineraryVersion} trip={trip} overlayPolyline={previewPolyline} />
       </section>
 
-      <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <section className="border-t border-line pt-4">
         <ReplanPanel
           tripId={trip.tripId}
           itinerary={trip.itinerary}
@@ -126,18 +130,18 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
         />
       </section>
 
-      <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <section className="border-t border-line pt-4">
         <TripParticipants tripId={trip.tripId} />
       </section>
 
-      <section className="flex flex-col gap-1 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <h2 className="text-sm font-medium text-zinc-500">Trip ID</h2>
-        <p className="font-mono text-lg tracking-widest">{trip.tripId}</p>
+      <section className="flex flex-col gap-1 border-t border-line pt-4">
+        <h2 className="text-sm font-medium text-ink-muted">Trip ID</h2>
+        <p className="font-mono text-lg tracking-widest text-ink">{trip.tripId}</p>
       </section>
 
       <Link
         href="/trip/create"
-        className="text-sm text-zinc-500 hover:underline"
+        className="text-sm text-ink-muted hover:text-brand hover:underline"
       >
         + 새 여행 만들기
       </Link>

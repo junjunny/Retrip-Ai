@@ -1,30 +1,113 @@
 @import "tailwindcss";
 
+/**
+ * Re:Trip AI design tokens (STEP 14 — StyleSeed lock, see STYLESEED.md).
+ * Light values come from the compiled StyleSeed palette
+ * (.styleseed/palette.css — quiet-mineral × calm-consumer, key color #276B5E).
+ * Dark values are a hand-derived companion (StyleSeed was only asked to
+ * validate light mode) using the SAME generated brand/accent ramp steps, so
+ * the two modes share one hue family rather than two unrelated palettes.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --canvas: #f8f2ed;
+  --surface: #fffcf9;
+  --surface-alt: #f1e9e1;
+  --ink: #0d0b09;
+  --ink-muted: #534f4c;
+  --line: #c1b9b1;
+  --brand: #226b5e;
+  --brand-ink: #fefbf9;
+  --accent: #31628b;
+  --accent-ink: #fefbf9;
+  --success: #006425;
+  --success-ink: #fefbf9;
+  --warning: #6e4b00;
+  --warning-ink: #fefbf9;
+  --danger: #902824;
+  --danger-ink: #fefbf9;
+  --focus: #0060a6;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-success: var(--success);
+  --color-success-ink: var(--success-ink);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
+  --color-focus: var(--focus);
+  --font-sans:
+    Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Malgun Gothic", system-ui, Roboto, Arial, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --canvas: #171310;
+    --surface: #211c17;
+    --surface-alt: #2a2420;
+    --ink: #f5f1ec;
+    --ink-muted: #b8b0a8;
+    /* #786a60 — 3.54:1 against canvas, clears WCAG 1.4.11's 3:1 non-text
+       floor for a border/UI-boundary role (verified: components/trip/ItineraryPlaces
+       etc. rely on `border-line` to be visible, not just decorative). */
+    --line: #786a60;
+    /* brand/accent use the StyleSeed-generated ramp's -400 step — brighter,
+       validated-family steps rather than an invented dark-mode color. */
+    --brand: #6fac9f;
+    /* #002e27 (ramp step -900, not -800) — #06483d only cleared 4.03:1 on
+       #6fac9f, short of WCAG AA's 4.5:1 for normal text; -900 gives 5.69:1. */
+    --brand-ink: #002e27;
+    --accent: #77a3cb;
+    --accent-ink: #032845;
+    --success: #4ade80;
+    --success-ink: #052e16;
+    --warning: #eab308;
+    --warning-ink: #422006;
+    --danger: #f87171;
+    --danger-ink: #450a0a;
+    --focus: #7cc1ff;
   }
 }
 
+* {
+  border-color: var(--line);
+}
+
+html {
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    Arial,
-    sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* One visible, consistent focus treatment everywhere — never color alone. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

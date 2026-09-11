@@ -8,7 +8,7 @@
  * route in this project to turn into a free lookup service if left open.
  */
 import { ExternalApiError } from "@/lib/api";
-import { allowRequest } from "@/lib/rateLimit";
+import { allowRequest, singleFlight } from "@/lib/rateLimit";
 import { resolvePlace } from "@/lib/place/resolve";
 
 export const maxDuration = 20;
@@ -20,12 +20,6 @@ export async function GET(
   { params }: { params: Promise<{ tripId: string }> },
 ) {
   const { tripId } = await params;
-  if (!allowRequest(`resolve:${tripId}`, RESOLVE_COOLDOWN_MS)) {
-    return Response.json(
-      { error: "너무 빠르게 다시 요청했어요. 잠시 후 다시 시도해주세요." },
-      { status: 429 },
-    );
-  }
 
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
@@ -34,14 +28,28 @@ export async function GET(
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));
 
+  // singleFlight coalesces two near-simultaneous identical lookups (e.g. React
+  // Strict Mode's dev-only double effect invocation) into one real call, so
+  // the cooldown below only ever rejects a genuinely NEW query (STEP 14).
   try {
-    const place = await resolvePlace({
-      query: q,
-      latitude: Number.isFinite(lat) ? lat : null,
-      longitude: Number.isFinite(lng) ? lng : null,
+    const place = await singleFlight(`resolve:${tripId}:${q}:${lat}:${lng}`, async () => {
+      if (!allowRequest(`resolve:${tripId}`, RESOLVE_COOLDOWN_MS)) {
+        throw new RateLimitedError();
+      }
+      return resolvePlace({
+        query: q,
+        latitude: Number.isFinite(lat) ? lat : null,
+        longitude: Number.isFinite(lng) ? lng : null,
+      });
     });
     return Response.json({ place });
   } catch (err) {
+    if (err instanceof RateLimitedError) {
+      return Response.json(
+        { error: "너무 빠르게 다시 요청했어요. 잠시 후 다시 시도해주세요." },
+        { status: 429 },
+      );
+    }
     console.error(
       "[api/trip/resolve]",
       err instanceof Error ? err.message : "unknown error",
@@ -53,3 +61,5 @@ export async function GET(
     );
   }
 }
+
+class RateLimitedError extends Error {}

@@ -8,16 +8,16 @@ import { appConfig } from "@/config/app";
  */
 export default function Home() {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-white p-8 text-center dark:bg-zinc-950">
-      <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-canvas p-8 text-center">
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">
         {appConfig.name}
       </h1>
-      <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="max-w-xs text-[15px] leading-relaxed text-ink-muted">
         {appConfig.slogan}
       </p>
       <Link
         href="/trip/create"
-        className="mt-2 min-h-12 rounded-lg bg-zinc-900 px-6 py-3 text-base font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+        className="mt-3 flex min-h-12 items-center justify-center rounded-xl bg-brand px-6 text-base font-medium text-brand-ink transition-opacity active:opacity-80"
       >
         새 여행 만들기
       </Link>

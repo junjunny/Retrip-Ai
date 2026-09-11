@@ -1,5 +1,6 @@
 "use client";
 
+import { Share2 } from "lucide-react";
 import { useRef, useState, useSyncExternalStore } from "react";
 
 const noop = () => () => {};
@@ -41,12 +42,12 @@ export function InviteLink({ tripId }: { tripId: string }) {
           value={url}
           aria-label="초대 링크"
           onFocus={(e) => e.target.select()}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+          className="min-w-0 flex-1 rounded-xl border border-line bg-surface-alt px-3 py-2 text-sm text-ink-muted"
         />
         <button
           type="button"
           onClick={copy}
-          className="min-h-11 shrink-0 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+          className="min-h-11 shrink-0 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink"
         >
           {copied ? "복사됨" : "복사"}
         </button>
@@ -57,8 +58,9 @@ export function InviteLink({ tripId }: { tripId: string }) {
           onClick={() =>
             navigator.share({ title: "여행에 참여해주세요", url }).catch(() => {})
           }
-          className="min-h-11 self-start text-sm text-zinc-500 hover:underline"
+          className="flex min-h-11 items-center gap-1.5 self-start text-sm text-ink-muted"
         >
+          <Share2 className="size-3.5" aria-hidden />
           공유하기
         </button>
       )}

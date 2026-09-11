@@ -1,7 +1,9 @@
 "use client";
 
+import { CheckCircle2, MapPin, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useEscapeToClose } from "@/components/shared/useEscapeToClose";
 import {
   placeChoiceFromCandidate,
   placeChoiceFromNormalized,
@@ -68,6 +70,8 @@ export function PlaceConfirmSheet({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  useEscapeToClose(onClose);
+
   async function runResolve(q: string) {
     setResolve({ s: "loading" });
     setPicked(null);
@@ -115,33 +119,39 @@ export function PlaceConfirmSheet({
     !editing && place?.verificationStatus === "verified" && !!place.latitude;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl dark:bg-zinc-900">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="place-confirm-heading"
+      className="fixed inset-0 z-[1000] flex items-end justify-center bg-ink/40 sm:items-center"
+    >
+      <div className="w-full max-w-md rounded-t-2xl bg-surface p-5 sm:rounded-2xl">
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-ink-muted">
               {item.order}번 · {item.time}
             </p>
-            <h3 className="text-base font-semibold">장소 확인</h3>
+            <h3 id="place-confirm-heading" className="text-base font-semibold text-ink">장소 확인</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-9 rounded-lg px-2 text-sm text-zinc-500"
+            aria-label="닫기"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-ink-muted"
           >
-            닫기
+            <X className="size-4" aria-hidden />
           </button>
         </div>
 
         {resolve.s === "loading" && (
-          <p className="py-6 text-center text-sm text-zinc-500">
+          <p className="py-6 text-center text-sm text-ink-muted">
             장소를 찾는 중...
           </p>
         )}
 
         {resolve.s === "error" && (
           <div className="flex flex-col gap-3 py-4">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="text-sm text-ink-muted">
               장소를 확인하지 못했어요. 직접 검색해주세요.
             </p>
             <SearchBox
@@ -157,30 +167,33 @@ export function PlaceConfirmSheet({
 
         {place && showConfirm && (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-zinc-500">장소 정보를 확인했어요.</p>
-            <div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-800">
-              <p className="font-medium">{place.placeName}</p>
-              {(place.roadAddress ?? place.address) && (
-                <p className="mt-0.5 text-sm text-zinc-500">
-                  {place.roadAddress ?? place.address}
-                </p>
-              )}
+            <p className="text-sm text-ink-muted">이 장소가 맞나요?</p>
+            <div className="flex items-start gap-2.5 rounded-xl bg-surface-alt p-3">
+              <MapPin className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+              <div>
+                <p className="font-medium text-ink">{place.placeName}</p>
+                {(place.roadAddress ?? place.address) && (
+                  <p className="mt-0.5 text-sm text-ink-muted">
+                    {place.roadAddress ?? place.address}
+                  </p>
+                )}
+              </div>
             </div>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">이 장소가 맞나요?</p>
             <div className="flex gap-2">
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => commit(placeChoiceFromNormalized(place))}
-                className="min-h-11 flex-1 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900"
+                className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink transition-opacity disabled:opacity-60"
               >
+                <CheckCircle2 className="size-4" aria-hidden />
                 {saving ? "저장 중..." : "맞아요"}
               </button>
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => setEditing(true)}
-                className="min-h-11 flex-1 rounded-lg border border-zinc-300 px-4 text-sm dark:border-zinc-700"
+                className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm text-ink disabled:opacity-60"
               >
                 장소 수정
               </button>
@@ -190,7 +203,7 @@ export function PlaceConfirmSheet({
 
         {place && !showConfirm && (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="text-sm text-ink-muted">
               {place.verificationStatus === "unresolved"
                 ? "장소를 찾지 못했어요. 직접 검색해주세요."
                 : "비슷한 장소가 여러 곳 있어요. 맞는 장소를 골라주세요."}
@@ -212,18 +225,18 @@ export function PlaceConfirmSheet({
                     <button
                       type="button"
                       onClick={() => setPicked(o.key)}
-                      className={`flex w-full flex-col items-start rounded-lg border px-3 py-2 text-left text-sm ${
+                      className={`flex w-full flex-col items-start rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
                         picked === o.key
-                          ? "border-zinc-900 bg-zinc-50 dark:border-zinc-100 dark:bg-zinc-800"
-                          : "border-zinc-200 dark:border-zinc-700"
+                          ? "border-brand bg-brand/10"
+                          : "border-line"
                       }`}
                     >
-                      <span className="font-medium">{o.name}</span>
+                      <span className="font-medium text-ink">{o.name}</span>
                       {o.address && (
-                        <span className="text-xs text-zinc-500">{o.address}</span>
+                        <span className="text-xs text-ink-muted">{o.address}</span>
                       )}
                       {o.choice.latitude == null && (
-                        <span className="text-xs text-amber-600">위치 정보 없음</span>
+                        <span className="text-xs text-warning">위치 정보 없음</span>
                       )}
                     </button>
                   </li>
@@ -238,7 +251,7 @@ export function PlaceConfirmSheet({
                 const o = options.find((x) => x.key === picked);
                 if (o) void commit(o.choice);
               }}
-              className="min-h-11 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white disabled:opacity-40 dark:bg-zinc-50 dark:text-zinc-900"
+              className="min-h-11 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink disabled:opacity-40"
             >
               {saving ? "저장 중..." : "이 장소로 선택"}
             </button>
@@ -246,7 +259,7 @@ export function PlaceConfirmSheet({
         )}
 
         {saveError && (
-          <p className="mt-3 text-sm text-red-600 dark:text-red-400">{saveError}</p>
+          <p className="mt-3 text-sm text-danger">{saveError}</p>
         )}
       </div>
     </div>
@@ -274,13 +287,14 @@ function SearchBox({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="장소 이름으로 검색"
-        className="min-h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-base outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-200"
+        className="min-h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-base text-ink outline-none focus:border-brand"
       />
       <button
         type="submit"
-        className="min-h-11 shrink-0 rounded-lg border border-zinc-300 px-4 text-sm dark:border-zinc-700"
+        aria-label="검색"
+        className="flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-line px-4 text-sm text-ink"
       >
-        검색
+        <Search className="size-4" aria-hidden />
       </button>
     </form>
   );

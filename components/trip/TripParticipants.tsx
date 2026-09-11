@@ -1,5 +1,6 @@
 "use client";
 
+import { User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -45,8 +46,8 @@ export function TripParticipants({ tripId }: { tripId: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-500">함께 여행하는 사람</h2>
-        <span className="text-sm text-zinc-500">
+        <h2 className="text-sm font-medium text-ink-muted">함께 여행하는 사람</h2>
+        <span className="text-sm text-ink-muted">
           {data ? `${data.count}명` : "–"}
         </span>
       </div>
@@ -56,26 +57,26 @@ export function TripParticipants({ tripId }: { tripId: string }) {
           {names.map((n, i) => (
             <li
               key={`${n}-${i}`}
-              className="rounded-full bg-zinc-100 px-3 py-1 text-sm dark:bg-zinc-800"
+              className="flex items-center gap-1.5 rounded-full bg-surface-alt px-3 py-1 text-sm text-ink"
             >
-              <span aria-hidden>👤 </span>
+              <User className="size-3.5 text-ink-muted" aria-hidden />
               {n}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">아직 참여한 사람이 없어요.</p>
+        <p className="text-sm text-ink-muted">아직 참여한 사람이 없어요.</p>
       )}
 
       <Link
         href={`/trip/${tripId}/join`}
-        className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 py-2.5 text-sm dark:border-zinc-700"
+        className="flex min-h-11 items-center self-start rounded-xl border border-line px-4 text-sm text-ink"
       >
         {joined ? "내 여행 선호도 수정하기" : "내 여행 선호도 알려주기"}
       </Link>
 
       <div className="pt-1">
-        <p className="mb-1.5 text-xs text-zinc-500">친구 초대하기</p>
+        <p className="mb-1.5 text-xs text-ink-muted">친구 초대하기</p>
         <InviteLink tripId={tripId} />
       </div>
     </div>

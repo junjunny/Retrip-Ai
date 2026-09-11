@@ -1,13 +1,15 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useState } from "react";
 
+import { useEscapeToClose } from "@/components/shared/useEscapeToClose";
 import { tripDates } from "@/features/trip";
 import type { ItineraryEdit } from "@/features/trip";
 import type { ItineraryItem, ScheduleType, Trip } from "@/types";
 
 const fieldBase =
-  "min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-200";
+  "min-h-11 rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none focus:border-brand";
 
 /** Edit an existing item's date / time / place name / fixed-flexible. */
 export function ItineraryEditSheet({
@@ -28,6 +30,8 @@ export function ItineraryEditSheet({
   const [scheduleType, setScheduleType] = useState<ScheduleType>(item.scheduleType);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEscapeToClose(onClose);
 
   const nameChanged = placeName.trim() !== item.placeName;
 
@@ -62,23 +66,29 @@ export function ItineraryEditSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl dark:bg-zinc-900">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="itinerary-edit-heading"
+      className="fixed inset-0 z-[1000] flex items-end justify-center bg-ink/40 sm:items-center"
+    >
+      <div className="w-full max-w-md rounded-t-2xl bg-surface p-5 sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold">일정 수정</h3>
+          <h3 id="itinerary-edit-heading" className="text-base font-semibold text-ink">일정 수정</h3>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-9 rounded-lg px-2 text-sm text-zinc-500"
+            aria-label="닫기"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-ink-muted"
           >
-            닫기
+            <X className="size-4" aria-hidden />
           </button>
         </div>
 
         <div className="flex flex-col gap-4">
           {days.length > 1 && (
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">날짜</span>
+              <span className="text-sm font-medium text-ink">날짜</span>
               <select
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
@@ -94,7 +104,7 @@ export function ItineraryEditSheet({
           )}
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">시간</span>
+            <span className="text-sm font-medium text-ink">시간</span>
             <input
               type="time"
               value={time}
@@ -104,21 +114,21 @@ export function ItineraryEditSheet({
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">장소명</span>
+            <span className="text-sm font-medium text-ink">장소명</span>
             <input
               value={placeName}
               onChange={(e) => setPlaceName(e.target.value)}
               className={`${fieldBase} w-full`}
             />
             {nameChanged && (
-              <span className="text-xs text-amber-600">
+              <span className="text-xs text-warning">
                 장소명을 바꾸면 장소를 다시 확인해야 해요.
               </span>
             )}
           </label>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">일정 종류</span>
+            <span className="text-sm font-medium text-ink">일정 종류</span>
             <div className="flex gap-2">
               {(
                 [
@@ -131,10 +141,10 @@ export function ItineraryEditSheet({
                   type="button"
                   aria-pressed={scheduleType === v}
                   onClick={() => setScheduleType(v)}
-                  className={`min-h-10 flex-1 rounded-lg border px-3 text-sm ${
+                  className={`min-h-11 flex-1 rounded-lg border px-3 text-sm transition-colors ${
                     scheduleType === v
-                      ? "border-zinc-900 bg-zinc-100 font-medium dark:border-zinc-100 dark:bg-zinc-800"
-                      : "border-zinc-300 text-zinc-500 dark:border-zinc-700"
+                      ? "border-brand bg-brand/10 font-medium text-brand"
+                      : "border-line text-ink-muted"
                   }`}
                 >
                   {label}
@@ -143,13 +153,13 @@ export function ItineraryEditSheet({
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
 
           <button
             type="button"
             disabled={saving}
             onClick={save}
-            className="min-h-11 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900"
+            className="min-h-11 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink disabled:opacity-60"
           >
             {saving ? "저장 중..." : "저장"}
           </button>

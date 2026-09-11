@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 /** Mirrors features/miniGuide/miniGuideSchema.ts's `MiniGuide`. */
@@ -33,11 +34,14 @@ export function MiniGuide({ tripId }: { tripId: string }) {
   if (!guide) return null;
 
   return (
-    <section className="flex flex-col gap-2 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-900">
-      <h2 className="text-sm font-medium text-zinc-500">🌿 이번 여행 미니 가이드</h2>
-      <p className="font-medium">{guide.headline}</p>
+    <section className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface-alt px-4 py-3">
+      <h2 className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+        <Sparkles className="size-3.5 text-brand" aria-hidden />
+        이번 여행 미니 가이드
+      </h2>
+      <p className="text-sm font-medium text-ink">{guide.headline}</p>
       {guide.tips.length > 0 && (
-        <ul className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <ul className="flex flex-col gap-1 text-sm text-ink-muted">
           {guide.tips.map((tip, i) => (
             <li key={i}>· {tip}</li>
           ))}
