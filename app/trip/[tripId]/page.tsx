@@ -21,6 +21,7 @@ import {
 import { getTrip } from "@/features/trip";
 import { JOURNEY_GENERIC_CLOSING_MESSAGE, JOURNEY_GENERIC_CONTINUE_MESSAGE } from "@/features/trip/journeyMessages";
 import type { SituationMessage } from "@/features/travel-state";
+import { toParticle } from "@/lib/korean";
 import type { ItineraryItem, MobilityOption, RoutePolylinePoint, Trip } from "@/types";
 
 type State =
@@ -151,7 +152,12 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [displayedCurrentOrder, setDisplayedCurrentOrder] = useState<number | null>(() =>
     firstCurrentOrder(initialTrip.itinerary),
   );
-  const [pendingMessage, setPendingMessage] = useState<{ text: string; hasNext: boolean } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<{
+    text: string;
+    hasNext: boolean;
+    /** the item this message is introducing — lets a slower LLM narrative response (STEP 19 §7/§8) verify it's still relevant before overwriting `text`, rather than clobbering a message the traveler already moved past. */
+    nextOrder?: number;
+  } | null>(null);
   const [completing, setCompleting] = useState(false);
 
   const demoDisplayTimes = useMemo(() => {
@@ -204,6 +210,11 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- segmentKey already encodes both orders; re-deriving currentItem/nextItem here would re-fire on every unrelated field change.
   }, [trip.tripId, segmentKey]);
   const segmentMobility = segmentMobilityResult?.key === segmentKey ? segmentMobilityResult.mobility : null;
+  // real current -> next route geometry for the BASE map (STEP 19 §14/§15) —
+  // never a fake straight line: only drawn when Kakao Mobility actually
+  // returned one. A Re:Plan preview's own route (previewPolyline) always
+  // takes priority while a preview is open.
+  const segmentDrivingPolyline = segmentMobility?.find((m) => m.mode === "DRIVING" && m.available)?.polyline ?? null;
 
   // real weather/traffic-derived situation line for an ORDINARY trip (STEP
   // 18 §19) — a demo trip uses its own scripted `situationLine` instead,
@@ -229,7 +240,15 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   }, [demoScenario, trip.tripId, journeyOrigin?.latitude, journeyOrigin?.longitude]);
 
   const atTrigger = demoScenario ? displayedCurrentOrder === triggerOrder(demoScenario) : true;
-  const situationLine = demoScenario ? (atTrigger ? demoScenario.situationLine : null) : realSituation?.line ?? null;
+  // 상황 -> 영향 -> 행동 (STEP 19 §19): a demo trip's pair is scripted
+  // narrative for a controlled scenario; an ordinary trip's is genuinely
+  // computed from real Travel State (features/travel-state/situationMessage.ts)
+  // — never mixed, same separation STEP 16-18 already established.
+  const situation: SituationMessage | null = demoScenario
+    ? atTrigger
+      ? { line: demoScenario.situationLine, impact: demoScenario.impactLine }
+      : null
+    : realSituation;
 
   const handleReplanApplied = (itinerary: ItineraryItem[]) => {
     setTrip((t) => ({ ...t, itinerary }));
@@ -250,7 +269,8 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
       if (!res.ok) return;
       const nextItinerary = data.itinerary as ItineraryItem[];
       const liveItem = nextItinerary.find((it) => it.order === order);
-      const hasNext = nextItinerary.some((it) => it.order === order + 1);
+      const upcomingItem = nextItinerary.find((it) => it.order === order + 1);
+      const hasNext = upcomingItem !== undefined;
       setTrip((t) => ({ ...t, itinerary: nextItinerary }));
       setItineraryVersion((v) => v + 1);
       const text = demoScenario
@@ -258,7 +278,23 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
         : hasNext
           ? JOURNEY_GENERIC_CONTINUE_MESSAGE
           : JOURNEY_GENERIC_CLOSING_MESSAGE;
-      setPendingMessage({ text, hasNext });
+      setPendingMessage({ text, hasNext, nextOrder: upcomingItem?.order });
+
+      // STEP 19 §7/§8: a grounded narrative about the UPCOMING place, fetched
+      // in the background — the deterministic message above is already on
+      // screen, so a slow/failed/ungrounded LLM response never blocks or
+      // breaks the journey (it either arrives in time and replaces the text,
+      // or it doesn't and the deterministic message stands as-is).
+      if (upcomingItem) {
+        fetch(`/api/trip/${trip.tripId}/next-narrative?order=${upcomingItem.order}&fromOrder=${order}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((narrativeData) => {
+            const narrative = narrativeData?.narrative as { message: string } | null | undefined;
+            if (!narrative) return;
+            setPendingMessage((m) => (m?.nextOrder === upcomingItem.order ? { ...m, text: narrative.message } : m));
+          })
+          .catch(() => {});
+      }
     } finally {
       setCompleting(false);
     }
@@ -294,15 +330,19 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
         onAdvance={advanceJourney}
       />
 
-      {situationLine && !pendingMessage && (
-        <section className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface-alt px-4 py-3">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-            <Compass className="size-3.5 text-brand" aria-hidden />
-            지금 상황
-          </p>
-          <p className="text-sm text-ink">{situationLine}</p>
+      {situation && !pendingMessage && (
+        <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt px-4 py-3">
+          <div className="flex flex-col gap-1">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+              <Compass className="size-3.5 text-brand" aria-hidden />
+              여행에 변화가 생겼어요
+            </p>
+            <p className="text-sm text-ink">{situation.line}</p>
+          </div>
+          <p className="text-sm text-ink-muted">{situation.impact}</p>
+          <p className="text-sm font-medium text-ink">남은 일정만 다시 맞춰볼까요?</p>
           {demoScenario && (
-            <Link href="/demo" className="mt-1 self-start text-xs text-ink-muted underline-offset-4 hover:text-brand hover:underline">
+            <Link href="/demo" className="self-start text-xs text-ink-muted underline-offset-4 hover:text-brand hover:underline">
               Demo 다시 시작
             </Link>
           )}
@@ -315,7 +355,7 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
         <ItineraryPlaces
           key={itineraryVersion}
           trip={trip}
-          overlayPolyline={previewPolyline}
+          overlayPolyline={previewPolyline ?? segmentDrivingPolyline}
           previewMarker={previewMarker}
           currentOrder={displayedCurrentOrder}
           demoDisplayTimes={demoDisplayTimes}
@@ -393,8 +433,24 @@ function JourneyCard({
 
   if (currentOrder == null || !currentItem) {
     return (
-      <section className="flex flex-col gap-1 rounded-xl border border-line bg-surface-alt px-4 py-3">
+      <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt px-4 py-3">
         <p className="text-sm text-ink">여행이 모두 끝났어요. 계획이 달라져도 여행은 계속되니까요.</p>
+        {demoScenario && (
+          <>
+            <div className="flex flex-col gap-1 border-t border-line pt-2">
+              <p className="text-sm font-medium text-ink">이게 Re:Trip이 여행을 바꾸는 방법입니다.</p>
+              <p className="text-xs leading-relaxed text-ink-muted">
+                전체 일정을 다시 짜는 대신, 달라진 상황에 영향을 받는 부분만 바꿨습니다.
+              </p>
+            </div>
+            <Link
+              href="/trip/create"
+              className="mt-1 flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink"
+            >
+              내 여행 직접 만들어보기
+            </Link>
+          </>
+        )}
       </section>
     );
   }
@@ -415,13 +471,26 @@ function JourneyCard({
       {pendingMessage ? (
         <>
           <p className="text-sm leading-relaxed text-ink">{pendingMessage.text}</p>
-          {pendingMessage.hasNext && (
+          {pendingMessage.hasNext && nextItem ? (
             <button
               type="button"
               onClick={onAdvance}
               className="min-h-11 self-start rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink"
             >
-              다음 일정으로 이동 →
+              {nextItem.placeName}
+              {toParticle(nextItem.placeName)} 이어가기 →
+            </button>
+          ) : (
+            // the LAST item's closing message still needs an explicit action
+            // to move past it — otherwise the journey stalls here forever and
+            // the "이게 Re:Trip이 여행을 바꾸는 방법입니다" summary (rendered
+            // once currentOrder becomes null) is never reached.
+            <button
+              type="button"
+              onClick={onAdvance}
+              className="min-h-11 self-start rounded-xl border border-line px-4 text-sm text-ink"
+            >
+              여행 마치기
             </button>
           )}
         </>

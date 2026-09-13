@@ -29,7 +29,11 @@ export async function GET(
 
   try {
     const travelState = await getTripTravelState(tripId, { currentLocation });
-    const situation = buildSituationMessage(travelState.weatherRisk, travelState.trafficBurden);
+    const situation = buildSituationMessage(
+      travelState.weatherRisk,
+      travelState.trafficBurden,
+      travelState.scheduleDelayMinutes,
+    );
     return Response.json({ situation });
   } catch (err) {
     if (err instanceof TripNotFoundError) {

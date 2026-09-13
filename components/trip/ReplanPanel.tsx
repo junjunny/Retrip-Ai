@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowRight,
   Bus,
   Car,
   Footprints,
@@ -279,6 +278,7 @@ export function ReplanPanel({
             <>
               {explanation && (
                 <div className="flex flex-col gap-2 border-b border-line pb-3">
+                  <p className="text-xs font-medium text-ink-muted">여행 변화</p>
                   <p className="font-medium text-ink">{explanation.title}</p>
                   <p className="text-sm text-ink-muted">{explanation.summary}</p>
                   {explanation.reasons.length > 0 && (
@@ -298,6 +298,9 @@ export function ReplanPanel({
                       ))}
                     </ul>
                   )}
+                  {changedSlots.length > 0 && (
+                    <p className="text-sm font-medium text-ink">나머지 일정은 그대로 유지합니다.</p>
+                  )}
                 </div>
               )}
 
@@ -315,12 +318,30 @@ export function ReplanPanel({
                   const description = explanation?.placeDescriptions.find((d) => d.itineraryOrder === s.itineraryOrder);
                   const reason = explanation?.slotReasons.find((r) => r.itineraryOrder === s.itineraryOrder);
                   const event = events.find((e) => e.itineraryOrder === s.itineraryOrder);
+                  const prevItem = itinerary.find((it) => it.order === s.itineraryOrder - 1);
+                  const nextItem = itinerary.find((it) => it.order === s.itineraryOrder + 1);
 
                   return (
                     <li
                       key={s.itineraryOrder}
-                      className="flex flex-col gap-2 overflow-hidden rounded-xl border border-line"
+                      className="flex flex-col gap-3 overflow-hidden rounded-xl border border-line"
                     >
+                      <div className="flex flex-col gap-2.5 p-3 pb-0">
+                        <BeforeAfterFlow
+                          label="기존 여행"
+                          prevPlaceName={prevItem?.placeName}
+                          currentPlaceName={s.current.placeName}
+                          nextPlaceName={nextItem?.placeName}
+                        />
+                        <BeforeAfterFlow
+                          label="Re:Plan"
+                          prevPlaceName={prevItem?.placeName}
+                          currentPlaceName={s.proposed?.placeName ?? s.current.placeName}
+                          nextPlaceName={nextItem?.placeName}
+                          changed
+                        />
+                      </div>
+
                       {s.proposed?.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- external TourAPI image, no Next/Image domain config for arbitrary hosts
                         <img
@@ -335,13 +356,7 @@ export function ReplanPanel({
                         </div>
                       )}
 
-                      <div className="flex flex-col gap-2.5 p-3">
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-                          <span className="tabular-nums">{s.current.time}</span>
-                          <span className="line-through decoration-ink-muted/50">{s.current.placeName}</span>
-                          <ArrowRight className="size-3 shrink-0" aria-hidden />
-                        </div>
-                        <p className="text-xl leading-tight font-semibold text-ink">{s.proposed?.placeName}</p>
+                      <div className="flex flex-col gap-2.5 p-3 pt-0">
                         {s.proposed?.address && (
                           <p className="flex items-center gap-1 text-xs text-ink-muted">
                             <MapPin className="size-3 shrink-0" aria-hidden />
@@ -409,6 +424,55 @@ export function ReplanPanel({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * (STEP 19 §5) A compact ✓/●/○ mini-timeline around the changed slot — the
+ * SAME completed/current/upcoming visual language ItineraryPlaces already
+ * uses (STEP 17), stacked "기존 여행" then "Re:Plan" so the ONE thing that's
+ * different (the current stop) is obvious at a glance, and everything
+ * around it visibly holds still. `changed` marks only the slot that
+ * actually differs between the two flows.
+ */
+function BeforeAfterFlow({
+  label,
+  prevPlaceName,
+  currentPlaceName,
+  nextPlaceName,
+  changed,
+}: {
+  label: string;
+  prevPlaceName?: string;
+  currentPlaceName: string;
+  nextPlaceName?: string;
+  changed?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs font-medium text-ink-muted">{label}</p>
+      <ol className="flex flex-col gap-0.5 text-sm">
+        {prevPlaceName && (
+          <li className="flex items-center gap-1.5 text-ink-muted">
+            <span aria-hidden>✓</span>
+            {prevPlaceName}
+          </li>
+        )}
+        <li className="flex items-center gap-1.5 font-medium text-ink">
+          <span aria-hidden>●</span>
+          {currentPlaceName}
+          {changed && (
+            <span className="rounded-full bg-brand/10 px-1.5 py-0.5 text-xs font-medium text-brand">변경</span>
+          )}
+        </li>
+        {nextPlaceName && (
+          <li className="flex items-center gap-1.5 text-ink-muted">
+            <span aria-hidden>○</span>
+            {nextPlaceName}
+          </li>
+        )}
+      </ol>
     </div>
   );
 }
