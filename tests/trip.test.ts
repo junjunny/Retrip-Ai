@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyItineraryEdit,
   applyRowPatch,
+  coerceDemoScenarioId,
   coerceTripPreference,
   dropRow,
   generateTripId,
@@ -352,5 +353,18 @@ describe("coerceTripPreference", () => {
     expect(partial?.nature).toBe(10);
     expect(partial?.culture).toBe(1);
     expect(partial?.food).toBe(5); // missing axis -> neutral
+  });
+});
+
+describe("coerceDemoScenarioId (STEP 16)", () => {
+  it("undefined/null/non-string -> null, never a fabricated id", () => {
+    expect(coerceDemoScenarioId(undefined)).toBeNull();
+    expect(coerceDemoScenarioId(null)).toBeNull();
+    expect(coerceDemoScenarioId(42)).toBeNull();
+    expect(coerceDemoScenarioId("")).toBeNull();
+  });
+
+  it("a real string round-trips exactly", () => {
+    expect(coerceDemoScenarioId("jeonju")).toBe("jeonju");
   });
 });

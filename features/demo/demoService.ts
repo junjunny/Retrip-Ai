@@ -1,0 +1,120 @@
+/**
+ * features/demo/demoService — turns a `DemoScenario` into a REAL trip.
+ *
+ * 1. `createTrip` (the ordinary client trip service — same function
+ *    `/trip/create` uses) with the scenario's schedule anchored to "now"
+ *    and its `tripPreference` (a real, plausible group preference, not a
+ *    scoring shortcut — see demoScenarios.ts).
+ * 2. Resolves + confirms each item's real place through the exact SAME
+ *    `/resolve` + itinerary `PATCH` endpoints `PlaceConfirmSheet` uses for a
+ *    human clicking "이 장소로 선택" — sequential, one place at a time, so
+ *    the demo respects the per-trip resolve rate limit exactly like a real
+ *    session would (see app/api/trip/[tripId]/resolve/route.ts). This is
+ *    automatically picking the top real search hit, the same outcome a
+ *    human would get by picking the first suggested candidate — an
+ *    unresolved place (e.g. a generic placeholder name with no real match)
+ *    is left honestly unconfirmed, same as the real flow.
+ *
+ * Client-side only (uses the browser Firestore SDK + `fetch`), same trust
+ * boundary as trip creation and place confirmation already have.
+ */
+import { createTrip, getTrip } from "@/features/trip";
+import { nowKst } from "@/lib/kst";
+
+import { buildDemoItinerary, type DemoScenario } from "./demoScenarios";
+
+export interface DemoStartProgress {
+  resolved: number;
+  total: number;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Stay comfortably clear of the per-trip resolve cooldown (1s) — see lib/rateLimit.ts.
+const RESOLVE_SPACING_MS = 1_100;
+
+/** Builds the scenario's itinerary, creates the trip, then resolves every place. Returns the new tripId. */
+export async function startDemo(
+  scenario: DemoScenario,
+  onProgress?: (p: DemoStartProgress) => void,
+): Promise<string> {
+  const built = buildDemoItinerary(scenario, nowKst());
+  const dates = [...new Set(built.map((i) => i.date))].sort();
+
+  const tripId = await createTrip({
+    title: scenario.title,
+    destination: scenario.destination,
+    startDate: dates[0],
+    endDate: dates[dates.length - 1],
+    itinerary: built.map((i) => ({
+      date: i.date,
+      time: i.time,
+      placeName: i.placeName,
+      scheduleType: i.scheduleType,
+    })),
+    tripPreference: scenario.tripPreference,
+    demoScenarioId: scenario.id,
+  });
+
+  const trip = await getTrip(tripId);
+  if (!trip) return tripId; // defensive — should never happen right after creation
+
+  const total = trip.itinerary.length;
+  // Bias each search near the previously-resolved stop (nothing for the
+  // first item) — the same `lat`/`lng` hint PlaceConfirmSheet could pass,
+  // just threaded across the sequence instead of coming from a map click.
+  // Without it, a common chain name (e.g. "베테랑 칼국수") can resolve to a
+  // same-named branch in a completely different city.
+  let anchor: { latitude: number; longitude: number } | null = null;
+  for (let i = 0; i < total; i++) {
+    const item = trip.itinerary[i];
+    onProgress?.({ resolved: i, total });
+    const resolved = await resolveAndConfirm(tripId, item.order, item.placeName, anchor);
+    if (resolved) anchor = resolved;
+    if (i < total - 1) await sleep(RESOLVE_SPACING_MS);
+  }
+  onProgress?.({ resolved: total, total });
+
+  return tripId;
+}
+
+async function resolveAndConfirm(
+  tripId: string,
+  order: number,
+  placeName: string,
+  anchor: { latitude: number; longitude: number } | null,
+): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const params = new URLSearchParams({ q: placeName });
+    if (anchor) {
+      params.set("lat", String(anchor.latitude));
+      params.set("lng", String(anchor.longitude));
+    }
+    const res = await fetch(`/api/trip/${tripId}/resolve?${params}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const place = data.place;
+    if (!place || place.verificationStatus === "unresolved" || place.latitude == null) return null;
+
+    // Same PATCH shape PlaceConfirmSheet sends for "이 장소로 선택" — the
+    // endpoint always marks a submitted place confirmed (see its doc
+    // comment), matching a human picking this exact top result.
+    await fetch(`/api/trip/${tripId}/itinerary`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        order,
+        place: {
+          placeId: place.placeId,
+          placeName: place.placeName,
+          address: place.roadAddress ?? place.address,
+          latitude: place.latitude,
+          longitude: place.longitude,
+        },
+      }),
+    });
+    return { latitude: place.latitude, longitude: place.longitude };
+  } catch {
+    // best-effort — a place that fails to resolve just stays unconfirmed, exactly like a real user's flow would.
+    return null;
+  }
+}

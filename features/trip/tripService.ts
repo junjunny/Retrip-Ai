@@ -9,6 +9,7 @@ import { getFirestoreDb } from "@/lib/firebase/client";
 import type { Trip } from "@/types";
 
 import {
+  coerceDemoScenarioId,
   coerceItinerary,
   coerceTripPreference,
   generateTripId,
@@ -69,6 +70,7 @@ export async function createTrip(draft: TripDraft): Promise<string> {
       // are indistinguishable and that's fine: both mean "fall back to the
       // participant-averaged Experience Profile" (see types/index.ts).
       tripPreference: draft.tripPreference ?? null,
+      demoScenarioId: draft.demoScenarioId ?? null,
       createdAt: serverTimestamp(),
       status: "active",
     });
@@ -94,6 +96,7 @@ export async function getTrip(tripId: string): Promise<Trip | null> {
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
     status: data.status === "completed" ? "completed" : "active",
     tripPreference: coerceTripPreference(data.tripPreference),
+    demoScenarioId: coerceDemoScenarioId(data.demoScenarioId),
   };
 }
 

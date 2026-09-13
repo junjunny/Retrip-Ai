@@ -1,5 +1,6 @@
 "use client";
 
+import { Compass } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
@@ -7,6 +8,7 @@ import { ItineraryPlaces } from "@/components/trip/ItineraryPlaces";
 import { MiniGuide } from "@/components/trip/MiniGuide";
 import { ReplanPanel } from "@/components/trip/ReplanPanel";
 import { TripParticipants } from "@/components/trip/TripParticipants";
+import { getDemoScenario } from "@/features/demo";
 import { getTrip } from "@/features/trip";
 import type { ItineraryItem, RoutePolylinePoint, Trip } from "@/types";
 
@@ -98,6 +100,8 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [itineraryVersion, setItineraryVersion] = useState(0);
   // a Re:Plan candidate's real route geometry, shown on the same map as the itinerary (STEP 13 §11).
   const [previewPolyline, setPreviewPolyline] = useState<RoutePolylinePoint[] | null>(null);
+  // STEP 16 — informational only; nothing about scoring/candidates/Re:Plan reads this.
+  const demoScenario = trip.demoScenarioId ? getDemoScenario(trip.demoScenarioId) : undefined;
 
   const handleReplanApplied = (itinerary: ItineraryItem[]) => {
     setTrip((t) => ({ ...t, itinerary }));
@@ -113,6 +117,19 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
           {fmtDate(trip.startDate)} — {fmtDate(trip.endDate)}
         </p>
       </header>
+
+      {demoScenario && (
+        <section className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface-alt px-4 py-3">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+            <Compass className="size-3.5 text-brand" aria-hidden />
+            지금 상황
+          </p>
+          <p className="text-sm text-ink">{demoScenario.situationLine}</p>
+          <Link href="/demo" className="mt-1 self-start text-xs text-ink-muted underline-offset-4 hover:text-brand hover:underline">
+            Demo 다시 시작
+          </Link>
+        </section>
+      )}
 
       <MiniGuide tripId={trip.tripId} />
 

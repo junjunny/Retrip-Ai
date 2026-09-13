@@ -135,6 +135,7 @@ d("createTrip + getTrip", () => {
     expect(Object.keys(raw).sort()).toEqual(
       [
         "createdAt",
+        "demoScenarioId",
         "destination",
         "endDate",
         "itinerary",
@@ -179,6 +180,14 @@ d("createTrip + getTrip", () => {
     created.push(id);
     const trip = await getTrip(id);
     expect(trip!.tripPreference).toBeNull();
+  });
+
+  it("STEP 16 — demoScenarioId is null for a normal trip and round-trips exactly when set", async () => {
+    const normal = await makeTrip();
+    expect((await getTrip(normal))!.demoScenarioId).toBeNull();
+
+    const demo = await makeTrip({ demoScenarioId: "jeonju" });
+    expect((await getTrip(demo))!.demoScenarioId).toBe("jeonju");
   });
 
   it("TEST 8 — rejects an invalid draft before any write", async () => {

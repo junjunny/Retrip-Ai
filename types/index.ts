@@ -75,6 +75,16 @@ export interface Trip {
    * features/trip/trip.ts's `coerceTripPreference`.
    */
   tripPreference: ExperienceProfile | null;
+  /**
+   * STEP 16 — set only for a trip created from `/demo` (see
+   * `features/demo/demoScenarios.ts`). Purely informational: it tells the
+   * Trip Detail page which situational banner to show. Nothing in
+   * Travel State, candidate generation, scoring, or Re:Plan ever reads this
+   * field — a demo trip is a REAL trip that earns its Re:Plan result through
+   * the same pipeline as any other, never a special-cased result. `null` for
+   * every trip created the normal way (i.e. almost all trips).
+   */
+  demoScenarioId: string | null;
 }
 
 /** Survey status for a participant (Phase 2). */

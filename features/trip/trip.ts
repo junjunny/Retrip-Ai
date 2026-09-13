@@ -61,6 +61,8 @@ export interface TripDraft {
    * step still creates a trip normally. See types/index.ts's `Trip.tripPreference`.
    */
   tripPreference?: ExperienceProfile;
+  /** STEP 16 — set only when this trip is created from `/demo`. See types/index.ts's `Trip.demoScenarioId`. */
+  demoScenarioId?: string;
 }
 
 /**
@@ -118,6 +120,11 @@ export function validateTripDraft(draft: TripDraft): string[] {
 export function coerceTripPreference(value: unknown): ExperienceProfile | null {
   if (value === null || value === undefined || typeof value !== "object") return null;
   return coercePreferenceVector(value as Partial<Record<(typeof PREFERENCE_KEYS)[number], unknown>>);
+}
+
+/** Reads a stored `demoScenarioId` field. Any non-string -> `null` (STEP 16). Pure. */
+export function coerceDemoScenarioId(value: unknown): string | null {
+  return typeof value === "string" && value ? value : null;
 }
 
 /**
