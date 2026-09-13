@@ -1,7 +1,6 @@
 export {
   buildDemoItinerary,
   DEMO_GENERIC_CLOSING_MESSAGE,
-  DEMO_GENERIC_CONTINUE_MESSAGE,
   DEMO_SCENARIOS,
   DEMO_TRIGGER_BUFFER_MINUTES,
   demoCompletionMessage,

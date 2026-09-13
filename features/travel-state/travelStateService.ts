@@ -9,13 +9,14 @@
  */
 import "server-only";
 
+import { INDOOR_CONTENT_TYPES, OUTDOOR_CONTENT_TYPES } from "@/features/candidate/candidateGeneration";
 import { getTripExperienceProfile } from "@/features/experience/experienceService";
 import { listPreferenceVectors } from "@/features/participant/participantService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { coerceItinerary } from "@/features/trip/trip";
-import { fetchDrivingRoute, fetchShortTermForecast } from "@/lib/api";
+import { fetchDrivingRoute, fetchShortTermForecast, fetchTourismDetail } from "@/lib/api";
 import { getAdminDb } from "@/lib/firebase/admin";
-import type { ItineraryItem, RouteData, TravelState, WeatherData } from "@/types";
+import type { IndoorOutdoor, ItineraryItem, RouteData, TravelState, WeatherData } from "@/types";
 
 import { buildTravelState, pickNextPendingItem } from "./travelState";
 
@@ -97,6 +98,28 @@ async function safeFetchWeather(
   }
 }
 
+/**
+ * Real indoor/outdoor classification for the next pending item, from
+ * TourAPI's own `contenttypeid` (STEP 20) — reuses candidate generation's
+ * SAME indoor/outdoor split (`INDOOR_CONTENT_TYPES`/`OUTDOOR_CONTENT_TYPES`),
+ * never a second classification drifting out of sync with it. Only possible
+ * when the item's `placeId` is `"tour:{contentId}"` (a Kakao-only or
+ * unconfirmed item has no such lookup); any adapter failure or ambiguous
+ * contentTypeId (neither list) honestly stays "unknown" — never a guess.
+ */
+async function safeFetchIndoorOutdoor(item: ItineraryItem | null): Promise<IndoorOutdoor | "unknown"> {
+  if (!item?.placeId?.startsWith("tour:")) return "unknown";
+  try {
+    const detail = await fetchTourismDetail(item.placeId.slice("tour:".length), null);
+    if (detail?.contentTypeId == null) return "unknown";
+    if (INDOOR_CONTENT_TYPES.includes(detail.contentTypeId)) return "indoor";
+    if (OUTDOOR_CONTENT_TYPES.includes(detail.contentTypeId)) return "outdoor";
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 /** `null` without both a confirmed destination AND a caller-supplied current location — no GPS is inferred. */
 async function safeFetchRoute(
   item: ItineraryItem | null,
@@ -144,11 +167,12 @@ export async function getTripTravelState(
   const nextItem = pickNextPendingItem(itinerary, now.date);
   const currentLocation = options.currentLocation ?? null;
 
-  const [weather, route, experienceProfile, preferenceVectors] = await Promise.all([
+  const [weather, route, experienceProfile, preferenceVectors, indoorOutdoor] = await Promise.all([
     safeFetchWeather(nextItem, now.date, now.time),
     safeFetchRoute(nextItem, currentLocation),
     getTripExperienceProfile(tripId),
     listPreferenceVectors(tripId),
+    safeFetchIndoorOutdoor(nextItem),
   ]);
 
   return buildTravelState({
@@ -156,10 +180,10 @@ export async function getTripTravelState(
     now,
     itinerary,
     weather,
-    // ItineraryItem carries no place category yet (STEP 2-4 scope), so there is
-    // no trustworthy indoor/outdoor signal to pass here — "unknown" is honest,
-    // not a guess. See computeWeatherRisk.
-    weatherContext: { indoorOutdoor: "unknown" },
+    // STEP 20: a real TourAPI-derived classification when the next item is a
+    // resolved TourAPI place; "unknown" (never a guess) otherwise — see
+    // safeFetchIndoorOutdoor. See computeWeatherRisk.
+    weatherContext: { indoorOutdoor },
     route,
     experienceProfile,
     // No visit-category tracking exists yet — always "insufficient data".

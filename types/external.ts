@@ -164,6 +164,8 @@ export interface RouteData {
 export interface TourismDetail {
   /** contentid */
   id: string;
+  /** contenttypeid — real, from the same detailCommon2 record (STEP 20). Lets a caller classify indoor/outdoor via features/candidate/candidateGeneration.ts's INDOOR_CONTENT_TYPES/OUTDOOR_CONTENT_TYPES instead of guessing. `null` only if the API omitted it. */
+  contentTypeId: number | null;
   /** overview — free-text Korean description. */
   description: string | null;
   /** firstimage — same field TourismPlace.imageUrl reads; re-confirmed at detail level. */

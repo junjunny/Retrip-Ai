@@ -23,7 +23,7 @@
  * Nothing here is read by Travel State, candidate generation, scoring, or
  * Re:Plan — a demo trip earns its result the same way any real trip would.
  */
-import { JOURNEY_GENERIC_CLOSING_MESSAGE, JOURNEY_GENERIC_CONTINUE_MESSAGE } from "@/features/trip/journeyMessages";
+import { JOURNEY_GENERIC_CLOSING_MESSAGE, journeyGenericContinueMessage } from "@/features/trip/journeyMessages";
 import { addDays, minutesToTime, timeToMinutes } from "@/lib/kst";
 import type { ExperienceProfile, ScheduleType } from "@/types";
 
@@ -126,7 +126,6 @@ function neutralProfile(overrides: Partial<ExperienceProfile>): ExperienceProfil
 // here only once Re:Plan has changed a place away from what the scenario
 // scripted (i.e. the live place no longer matches `completionMessage`) —
 // never invents a fact about the real, emergent replacement.
-export const DEMO_GENERIC_CONTINUE_MESSAGE = JOURNEY_GENERIC_CONTINUE_MESSAGE;
 export const DEMO_GENERIC_CLOSING_MESSAGE = JOURNEY_GENERIC_CLOSING_MESSAGE;
 
 /**
@@ -453,17 +452,21 @@ export function demoDisplayTime(scenario: DemoScenario, order: number): string |
  * Falls back to a generic line when the LIVE place at this order no longer
  * matches what the scenario scripted (i.e. Re:Plan changed it) — never
  * invents a fact about a real, emergent replacement place. `hasNext` picks
- * the "다음 목적지" vs. closing tone.
+ * the "다음 목적지" vs. closing tone; `nextPlaceName` (when `hasNext`) names
+ * that place in the fallback line instead of a bare "다음 여행" (STEP 20 §15).
  */
 export function demoCompletionMessage(
   scenario: DemoScenario,
   order: number,
   livePlaceName: string,
   hasNext: boolean,
+  nextPlaceName?: string,
 ): string {
   const scripted = scenarioFlatItems(scenario)[order - 1];
   if (scripted && scripted.placeName === livePlaceName) return scripted.completionMessage;
-  return hasNext ? DEMO_GENERIC_CONTINUE_MESSAGE : DEMO_GENERIC_CLOSING_MESSAGE;
+  return hasNext && nextPlaceName
+    ? journeyGenericContinueMessage(nextPlaceName)
+    : DEMO_GENERIC_CLOSING_MESSAGE;
 }
 
 export interface BuiltDemoItem {

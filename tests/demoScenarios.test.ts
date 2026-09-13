@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildDemoItinerary,
   DEMO_GENERIC_CLOSING_MESSAGE,
-  DEMO_GENERIC_CONTINUE_MESSAGE,
   DEMO_SCENARIOS,
   DEMO_TRIGGER_BUFFER_MINUTES,
   demoCompletionMessage,
@@ -151,10 +150,12 @@ describe("scenario journey helpers", () => {
     expect(demoCompletionMessage(jeonju, order, "서학동예술마을", true)).toMatch(/전시 관람/);
   });
 
-  it("demoCompletionMessage falls back to a generic line once Re:Plan changed the place", () => {
+  it("demoCompletionMessage falls back to a generic line (naming the real next place) once Re:Plan changed the place", () => {
     const jeonju = getDemoScenario("jeonju")!;
     const order = triggerOrder(jeonju);
-    expect(demoCompletionMessage(jeonju, order, "동학혁명기념관", true)).toBe(DEMO_GENERIC_CONTINUE_MESSAGE);
+    expect(demoCompletionMessage(jeonju, order, "동학혁명기념관", true, "베테랑 칼국수")).toBe(
+      "여기까지 잘 다녀오셨나요? 베테랑 칼국수에서 여행을 이어가볼 수 있어요.",
+    );
     expect(demoCompletionMessage(jeonju, order, "동학혁명기념관", false)).toBe(DEMO_GENERIC_CLOSING_MESSAGE);
   });
 });

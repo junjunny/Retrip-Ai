@@ -19,7 +19,7 @@ import {
   type DemoScenario,
 } from "@/features/demo";
 import { getTrip } from "@/features/trip";
-import { JOURNEY_GENERIC_CLOSING_MESSAGE, JOURNEY_GENERIC_CONTINUE_MESSAGE } from "@/features/trip/journeyMessages";
+import { JOURNEY_GENERIC_CLOSING_MESSAGE, journeyGenericContinueMessage } from "@/features/trip/journeyMessages";
 import type { SituationMessage } from "@/features/travel-state";
 import { toParticle } from "@/lib/korean";
 import type { ItineraryItem, MobilityOption, RoutePolylinePoint, Trip } from "@/types";
@@ -240,13 +240,16 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   }, [demoScenario, trip.tripId, journeyOrigin?.latitude, journeyOrigin?.longitude]);
 
   const atTrigger = demoScenario ? displayedCurrentOrder === triggerOrder(demoScenario) : true;
-  // 상황 -> 영향 -> 행동 (STEP 19 §19): a demo trip's pair is scripted
-  // narrative for a controlled scenario; an ordinary trip's is genuinely
-  // computed from real Travel State (features/travel-state/situationMessage.ts)
-  // — never mixed, same separation STEP 16-18 already established.
+  // 상황 -> 영향 -> 선택 (STEP 19/20 §2/§11): a demo trip's pair is scripted
+  // narrative for a controlled scenario (always the full "notable" tier — a
+  // demo situation exists precisely to be worth noticing); an ordinary
+  // trip's is genuinely computed from real Travel State
+  // (features/travel-state/situationMessage.ts) at whichever intervention
+  // tier it actually earned — never mixed, same separation STEP 16-18
+  // already established.
   const situation: SituationMessage | null = demoScenario
     ? atTrigger
-      ? { line: demoScenario.situationLine, impact: demoScenario.impactLine }
+      ? { tier: "notable", line: demoScenario.situationLine, impact: demoScenario.impactLine }
       : null
     : realSituation;
 
@@ -274,9 +277,9 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
       setTrip((t) => ({ ...t, itinerary: nextItinerary }));
       setItineraryVersion((v) => v + 1);
       const text = demoScenario
-        ? demoCompletionMessage(demoScenario, order, liveItem?.placeName ?? "", hasNext)
-        : hasNext
-          ? JOURNEY_GENERIC_CONTINUE_MESSAGE
+        ? demoCompletionMessage(demoScenario, order, liveItem?.placeName ?? "", hasNext, upcomingItem?.placeName)
+        : hasNext && upcomingItem
+          ? journeyGenericContinueMessage(upcomingItem.placeName)
           : JOURNEY_GENERIC_CLOSING_MESSAGE;
       setPendingMessage({ text, hasNext, nextOrder: upcomingItem?.order });
 
@@ -331,22 +334,32 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
       />
 
       {situation && !pendingMessage && (
-        <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt px-4 py-3">
-          <div className="flex flex-col gap-1">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-              <Compass className="size-3.5 text-brand" aria-hidden />
-              여행에 변화가 생겼어요
-            </p>
-            <p className="text-sm text-ink">{situation.line}</p>
-          </div>
-          <p className="text-sm text-ink-muted">{situation.impact}</p>
-          <p className="text-sm font-medium text-ink">남은 일정만 다시 맞춰볼까요?</p>
-          {demoScenario && (
-            <Link href="/demo" className="self-start text-xs text-ink-muted underline-offset-4 hover:text-brand hover:underline">
-              Demo 다시 시작
-            </Link>
-          )}
-        </section>
+        // STEP 20 §1/§11: a "gentle" tier is one calm line and nothing
+        // else — no impact paragraph, no action prompt, no "여행에 변화가
+        // 생겼어요" framing. Only the "notable" tier (a real weatherRisk/
+        // trafficBurden "high", or a scripted demo situation) gets the
+        // full 상황->영향->선택 treatment, and even then it only ever
+        // NAMES that a choice exists — the real [Re:Plan] button below is
+        // what the user has to press by hand.
+        situation.tier === "gentle" ? (
+          <p className="text-sm text-ink-muted">{situation.line}</p>
+        ) : (
+          <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt px-4 py-3">
+            <div className="flex flex-col gap-1">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                <Compass className="size-3.5 text-brand" aria-hidden />
+                {situation.line}
+              </p>
+              {situation.impact && <p className="text-sm text-ink">{situation.impact}</p>}
+            </div>
+            <p className="text-sm font-medium text-ink">원한다면 남은 일정을 조금 다르게 이어갈 수 있어요.</p>
+            {demoScenario && (
+              <Link href="/demo" className="self-start text-xs text-ink-muted underline-offset-4 hover:text-brand hover:underline">
+                Demo 다시 시작
+              </Link>
+            )}
+          </section>
+        )
       )}
 
       <MiniGuide tripId={trip.tripId} />

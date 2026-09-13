@@ -19,6 +19,7 @@ import {
   type TripDraft,
 } from "@/features/trip/trip";
 import { defaultPreferenceVector } from "@/features/participant/participant";
+import { journeyGenericContinueMessage } from "@/features/trip/journeyMessages";
 import type { ItineraryItem } from "@/types";
 
 const baseDraft = (over: Partial<TripDraft> = {}): TripDraft => ({
@@ -463,5 +464,11 @@ describe("distributeDesiredPlaces (STEP 18)", () => {
     const a = distributeDesiredPlaces(desired, ["2026-09-11"], []);
     const b = distributeDesiredPlaces(desired, ["2026-09-11"], []);
     expect(a).toEqual(b);
+  });
+});
+
+describe("journeyGenericContinueMessage (STEP 20)", () => {
+  it("names the real upcoming place — never a bare '다음 여행으로'", () => {
+    expect(journeyGenericContinueMessage("경기전")).toBe("여기까지 잘 다녀오셨나요? 경기전에서 여행을 이어가볼 수 있어요.");
   });
 });

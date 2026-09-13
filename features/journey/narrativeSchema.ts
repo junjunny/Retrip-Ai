@@ -40,12 +40,20 @@ const DURATION_PATTERN = /\d+\s*분/;
 const DISTANCE_PATTERN = /\d+(\.\d+)?\s*(km|킬로미터|미터|m\b)/i;
 const WEATHER_CLAIM_PATTERN = /(비가|강수|맑음|흐림|눈이|폭우|폭염|기온)/;
 const RAW_SCORE_PATTERN = /\d+\s*(점|퍼센트|%|으로\s*(높|낮))/;
+/**
+ * Unearned tourism-brochure adjectives (STEP 20 §14) — "인기 있는", "꼭 가봐야
+ * 할", "최고의", "완벽한" and their close variants. These aren't factual
+ * claims `facts` could ever "back up" (no adapter reports popularity), so
+ * they're banned outright rather than checked against a fact.
+ */
+const PROMO_ADJECTIVE_PATTERN = /(인기\s*있는|인기\s*많은|꼭\s*가봐야|반드시\s*가봐야|최고의|최고예요|완벽한|완벽해요)/;
 
 /**
  * A generation that states a travel-time/distance number or a weather
  * condition never present in `facts` is rejected outright — same policy as
  * `explanationSchema.isGrounded` (STEP 11), applied to this second,
- * independent narrative feature.
+ * independent narrative feature. An unearned promotional adjective is
+ * rejected unconditionally (no fact could ever ground it).
  */
 export function isGroundedNarrative(narrative: PlaceNarrative, facts: NarrativeFacts): boolean {
   const text = `${narrative.title} ${narrative.message}`;
@@ -55,6 +63,7 @@ export function isGroundedNarrative(narrative: PlaceNarrative, facts: NarrativeF
   // this feature never has a weather signal to ground a claim with (unlike Re:Plan's explanation) — any weather claim is always ungrounded here.
   if (WEATHER_CLAIM_PATTERN.test(text)) return false;
   if (RAW_SCORE_PATTERN.test(text)) return false;
+  if (PROMO_ADJECTIVE_PATTERN.test(text)) return false;
 
   return true;
 }

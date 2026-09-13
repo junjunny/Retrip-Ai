@@ -207,8 +207,8 @@ export function ReplanPanel({
       if (!res.ok) {
         setError(
           data.stale
-            ? "일정이 변경되어 이 계획을 적용할 수 없어요. 다시 계획을 생성해주세요."
-            : (data.error ?? "적용하지 못했습니다. 잠시 후 다시 시도해주세요."),
+            ? "그 사이에 일정이 바뀌어서 이 제안은 이어갈 수 없어요. 다시 한 번 확인해주세요."
+            : (data.error ?? "지금은 이어갈 수 없었어요. 잠시 후 다시 시도해주세요."),
         );
         setPhase("error");
         return;
@@ -221,7 +221,7 @@ export function ReplanPanel({
       onPolylinePreview?.(null);
       onPreviewMarker?.(null);
     } catch {
-      setError("적용하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setError("지금은 이어갈 수 없었어요. 잠시 후 다시 시도해주세요.");
       setPhase("error");
     }
   }
@@ -266,7 +266,7 @@ export function ReplanPanel({
       )}
 
       {phase === "applied" && (
-        <p className="text-sm text-ink-muted">적용되었습니다.</p>
+        <p className="text-sm text-ink-muted">여행을 이어갈 준비가 됐어요.</p>
       )}
       {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -278,7 +278,7 @@ export function ReplanPanel({
             <>
               {explanation && (
                 <div className="flex flex-col gap-2 border-b border-line pb-3">
-                  <p className="text-xs font-medium text-ink-muted">여행 변화</p>
+                  <p className="text-xs font-medium text-ink-muted">여행 흐름이 조금 달라졌어요</p>
                   <p className="font-medium text-ink">{explanation.title}</p>
                   <p className="text-sm text-ink-muted">{explanation.summary}</p>
                   {explanation.reasons.length > 0 && (
@@ -402,7 +402,7 @@ export function ReplanPanel({
                 disabled={applying}
                 className="min-h-11 flex-1 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink transition-opacity disabled:opacity-60"
               >
-                {applying ? "변경하는 중..." : "이 일정으로 변경"}
+                {applying ? "이어가는 중..." : "이 일정으로 이어가기"}
               </button>
               <button
                 type="button"
@@ -410,7 +410,7 @@ export function ReplanPanel({
                 disabled={applying}
                 className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm text-ink disabled:opacity-60"
               >
-                기존 일정 유지
+                그대로 여행하기
               </button>
             </div>
           ) : (

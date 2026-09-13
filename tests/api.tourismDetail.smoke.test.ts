@@ -17,6 +17,12 @@ d("fetchTourismDetail", () => {
     expect(detail!.description).toContain("해운대");
     expect(detail!.imageUrl).toMatch(/^https?:\/\//);
     expect(detail!.event).toBeNull(); // not a festival content type -> never fetched/guessed
+    expect(detail!.contentTypeId).toBe(12); // STEP 20 — real contenttypeid from the response itself
+  });
+
+  it("STEP 20 — resolves contentTypeId from the response even when the caller passes null", async () => {
+    const detail = await fetchTourismDetail("126081", null);
+    expect(detail!.contentTypeId).toBe(12);
   });
 
   it("a real festival content item returns real eventstartdate/eventenddate", async () => {

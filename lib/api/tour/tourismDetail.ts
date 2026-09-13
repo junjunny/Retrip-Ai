@@ -19,7 +19,7 @@ import "server-only";
 
 import type { TourismDetail } from "@/types";
 
-import { str } from "../coerce";
+import { num, str } from "../coerce";
 import { dataPortalGet } from "../dataPortal";
 
 const SERVICE = "B551011/KorService2";
@@ -32,6 +32,7 @@ const FESTIVAL_CONTENT_TYPE_ID = 15;
 
 interface RawCommonItem {
   contentid?: string;
+  contenttypeid?: string | number;
   overview?: string;
   firstimage?: string;
 }
@@ -45,6 +46,13 @@ interface RawIntroItem {
  * real event dates. `null` fields mean the API had nothing there — never
  * invented. Both calls are independent; a detailIntro2 failure still returns
  * the detailCommon2 data.
+ *
+ * `contentTypeId` is an OPTIONAL hint (pass it when the caller already has
+ * one, e.g. from a fresh `CandidatePlace`); when omitted, the real
+ * `contenttypeid` field detailCommon2's own response carries (STEP 20) is
+ * used instead — so a caller holding only a confirmed itinerary item's
+ * `"tour:{contentId}"` placeId (no separately-stored contentTypeId) can
+ * still get a real classification, never a guess.
  */
 export async function fetchTourismDetail(
   contentId: string,
@@ -59,12 +67,14 @@ export async function fetchTourismDetail(
   const c = common[0];
   if (!c) return null;
 
+  const resolvedContentTypeId = contentTypeId ?? num(c.contenttypeid);
+
   let event: TourismDetail["event"] = null;
-  if (contentTypeId === FESTIVAL_CONTENT_TYPE_ID) {
+  if (resolvedContentTypeId === FESTIVAL_CONTENT_TYPE_ID) {
     const intro = await dataPortalGet<RawIntroItem>(
       SERVICE,
       "detailIntro2",
-      { ...MOBILE, contentId, contentTypeId, numOfRows: 1, pageNo: 1 },
+      { ...MOBILE, contentId, contentTypeId: resolvedContentTypeId, numOfRows: 1, pageNo: 1 },
       { source: SOURCE, revalidateSeconds: REVALIDATE },
     ).catch(() => [] as RawIntroItem[]);
     const startDate = str(intro[0]?.eventstartdate);
@@ -74,6 +84,7 @@ export async function fetchTourismDetail(
 
   return {
     id: str(c.contentid) ?? contentId,
+    contentTypeId: resolvedContentTypeId,
     description: str(c.overview),
     imageUrl: str(c.firstimage),
     event,

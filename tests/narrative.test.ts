@@ -117,4 +117,14 @@ describe("isGroundedNarrative (STEP 19)", () => {
     const n = { title: "다음 여행지", message: "전주의 또 다른 분위기를 느낄 수 있는 곳이에요.", factsUsed: ["overview"] };
     expect(isGroundedNarrative(n, baseFacts)).toBe(true);
   });
+
+  it("rejects an unearned promotional adjective — never gradable, so never gets a free pass (STEP 20)", () => {
+    for (const message of [
+      "이곳은 꼭 가봐야 할 인기 명소예요.",
+      "전주에서 최고의 장소예요.",
+      "완벽한 다음 코스예요.",
+    ]) {
+      expect(isGroundedNarrative({ title: "제목", message, factsUsed: [] }, baseFacts)).toBe(false);
+    }
+  });
 });

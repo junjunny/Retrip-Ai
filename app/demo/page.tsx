@@ -61,17 +61,17 @@ export default function DemoPage() {
       </Link>
 
       <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">
-        달라진 상황에 맞춰, 깨진 부분만 고쳐요
+        여행이 계획대로 흘러가지 않아도, 여행의 목적은 잃지 않도록
       </h1>
       <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-        여행 중 계획이 달라졌을 때, Re:Trip이 남은 일정만 다시 맞추는 과정을 체험해보세요.
+        Re:Trip은 전체 일정을 다시 짜지 않아요. 달라진 상황에 영향을 받는 부분만, 원래 여행의 흐름에 맞춰 다시 이어줘요.
       </p>
 
       <ol className="mt-6 flex flex-col gap-3">
         {[
-          { icon: Route, label: "STEP 1", text: "계획대로 여행합니다." },
-          { icon: Compass, label: "STEP 2", text: "날씨·교통 등 상황이 달라집니다." },
-          { icon: RefreshCw, label: "STEP 3", text: "[Re:Plan]을 눌러 남은 여행을 다시 맞춥니다." },
+          { icon: Route, label: "STEP 1", text: "원래 계획대로 여행합니다." },
+          { icon: Compass, label: "STEP 2", text: "상황이 달라지면, Re:Trip이 여행의 흐름을 조용히 살펴봐요." },
+          { icon: RefreshCw, label: "STEP 3", text: "원한다면 원래 경험은 유지한 채 일부만 이어갈 수 있어요." },
         ].map(({ icon: Icon, label, text }) => (
           <li key={label} className="flex items-center gap-3 rounded-xl border border-line px-3.5 py-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-alt text-brand">
