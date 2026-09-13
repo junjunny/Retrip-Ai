@@ -20,6 +20,7 @@
 import { toPublicReplanPreview } from "@/features/replan";
 import { generateReplanPreviewWithExplanation } from "@/features/replan/replanService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
+import { buildSituationMessage } from "@/features/travel-state";
 import { allowRequest } from "@/lib/rateLimit";
 
 /** A Preview run costs real money (external APIs + one LLM call) — block rapid repeats of the same trip. */
@@ -63,7 +64,15 @@ export async function POST(
     const events = facts.slots
       .filter((s) => s.eventOngoing)
       .map((s) => ({ itineraryOrder: s.itineraryOrder, startDate: s.eventStartDate!, endDate: s.eventEndDate! }));
-    return Response.json({ preview: toPublicReplanPreview(preview), explanation, events });
+    // STEP 21 — reuses the SAME real weatherRisk/trafficBurden this preview
+    // was already scored against (facts, STEP 11) and the SAME translator
+    // the passive situation banner uses (STEP 18-20) — never a second
+    // classification, never a raw level exposed. `null` scheduleDelayMinutes:
+    // Travel State's own schedule-delay number isn't part of `facts` (it
+    // wasn't needed for the explanation LLM), so the impact line here stays
+    // qualitative rather than inventing a number.
+    const situation = buildSituationMessage(facts.weatherRisk, facts.trafficBurden, null);
+    return Response.json({ preview: toPublicReplanPreview(preview), explanation, events, situation });
   } catch (err) {
     if (err instanceof TripNotFoundError) {
       return Response.json({ error: err.message }, { status: 404 });

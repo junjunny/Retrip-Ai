@@ -25,3 +25,5 @@ export type {
   ReplanSlotProposal,
   SlotRankingInput,
 } from "./replan";
+export { topExperienceHighlights } from "./experienceHighlights";
+export type { ExperienceHighlight } from "./experienceHighlights";

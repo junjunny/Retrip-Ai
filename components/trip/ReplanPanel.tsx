@@ -1,22 +1,44 @@
 "use client";
 
 import {
+  ArrowRight,
+  Bike,
   Bus,
+  Camera,
   Car,
+  Check,
+  CloudRain,
+  Coffee,
   Footprints,
+  Heart,
   ImageOff,
+  Landmark,
   Lightbulb,
   MapPin,
   Navigation,
   Search,
+  ShoppingBag,
+  Sofa,
   Sparkles,
+  Trees,
   TriangleAlert,
+  Users,
+  UtensilsCrossed,
 } from "lucide-react";
 import { useState } from "react";
 
 import type { PreviewMarker } from "@/components/trip/TripMap";
+import { topExperienceHighlights, type ExperienceHighlight } from "@/features/replan";
 import { toPlaceSearchResults, type PlaceSearchResult } from "@/features/trip";
-import type { ItineraryItem, MobilityMode, MobilityOption, RoutePolylinePoint } from "@/types";
+import type { SituationMessage } from "@/features/travel-state";
+import type {
+  ExperienceProfile,
+  ItineraryItem,
+  MobilityMode,
+  MobilityOption,
+  PreferenceKey,
+  RoutePolylinePoint,
+} from "@/types";
 
 /**
  * Thin client-side mirror of `PublicReplanPreview`/`PublicReplanSlot`
@@ -73,6 +95,19 @@ type LatLng = { latitude: number; longitude: number };
 
 const MODE_ICON: Record<MobilityMode, typeof Footprints> = { WALK: Footprints, DRIVING: Car, TRANSIT: Bus };
 const MODE_LABEL: Record<MobilityMode, string> = { WALK: "도보", DRIVING: "자동차", TRANSIT: "대중교통" };
+/** matches SituationKind (features/travel-state/situationMessage.ts) — same icon language page.tsx uses for the passive banner. */
+const SITUATION_ICON = { weather: CloudRain, traffic: Car, mixed: CloudRain, crowd: Users } as const;
+/** one real icon per preference axis (features/participant/participant.ts's PREFERENCE_KEYS) — never emoji. */
+const PREFERENCE_ICON: Record<PreferenceKey, typeof Trees> = {
+  nature: Trees,
+  culture: Landmark,
+  food: UtensilsCrossed,
+  cafe: Coffee,
+  shopping: ShoppingBag,
+  activity: Bike,
+  photo: Camera,
+  relax: Sofa,
+};
 
 const fmtEventDate = (yyyymmdd: string) => `${Number(yyyymmdd.slice(4, 6))}/${Number(yyyymmdd.slice(6, 8))}`;
 const fmtDistance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`);
@@ -94,6 +129,8 @@ function lastCompletedLocation(itinerary: ItineraryItem[]): (LatLng & { placeNam
 export function ReplanPanel({
   tripId,
   itinerary,
+  tripPreference,
+  fallbackSituation,
   onApplied,
   onPolylinePreview,
   onPreviewMarker,
@@ -102,6 +139,26 @@ export function ReplanPanel({
   tripId: string;
   /** for the "마지막 완료 장소에서 출발" origin shortcut (STEP 13 §6) — never used for anything else here. */
   itinerary: ItineraryItem[];
+  /**
+   * (STEP 21) The trip's real Trip Preference, exactly as already stored on
+   * `Trip` (`types/index.ts`'s `tripPreference: ExperienceProfile | null`) —
+   * no new API call, no new preference model. `null` when the traveler never
+   * set one; Section C ("무엇을 지키는가") then simply doesn't render rather
+   * than inventing a preference (see `features/replan/experienceHighlights`).
+   */
+  tripPreference?: ExperienceProfile | null;
+  /**
+   * (STEP 21) The SAME situation page.tsx already shows in its passive
+   * banner — for a demo trip this is the scenario's scripted narrative
+   * (features/demo/demoScenarios.ts), for an ordinary trip it's the real
+   * Travel-State-derived one. Used only when the Preview API's own
+   * `situation` (computed from the REAL weatherRisk/trafficBurden this
+   * exact preview was scored against) comes back `null` — which happens for
+   * a demo trip whenever the real current weather doesn't happen to match
+   * the demo's premise. Never overrides a real API result; never invented
+   * for an ordinary trip beyond what page.tsx already computed for it.
+   */
+  fallbackSituation?: SituationMessage | null;
   onApplied: (itinerary: ItineraryItem[]) => void;
   /** lets the trip-level map show the winning candidate's real route geometry (STEP 13 §11) — `null` clears it. */
   onPolylinePreview?: (polyline: RoutePolylinePoint[] | null) => void;
@@ -122,7 +179,12 @@ export function ReplanPanel({
   const [preview, setPreview] = useState<ReplanPreview | null>(null);
   const [explanation, setExplanation] = useState<ReplanExplanation | null>(null);
   const [events, setEvents] = useState<ReplanEvent[]>([]);
+  // (STEP 21) the SAME real weatherRisk/trafficBurden this preview was
+  // already scored against — reused, never a second classification (see
+  // app/api/trip/[tripId]/replan/preview/route.ts). Drives Section A only.
+  const [situation, setSituation] = useState<SituationMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const highlights: ExperienceHighlight[] = topExperienceHighlights(tripPreference ?? null);
 
   // --- origin (currentLocation), STEP 13 §6/§7 ---
   const [origin, setOrigin] = useState<(LatLng & { label: string }) | null>(null);
@@ -156,6 +218,7 @@ export function ReplanPanel({
       setPreviewOrigin(effectiveOrigin);
       setExplanation((data.explanation as ReplanExplanation | undefined) ?? null);
       setEvents((data.events as ReplanEvent[] | undefined) ?? []);
+      setSituation((data.situation as SituationMessage | undefined) ?? fallbackSituation ?? null);
       setPhase("preview");
 
       // show the first REPLACE slot's real driving route + candidate pin on the map, if any.
@@ -183,6 +246,7 @@ export function ReplanPanel({
     setPreview(null);
     setExplanation(null);
     setEvents([]);
+    setSituation(null);
     setPhase("idle");
     onPolylinePreview?.(null);
     onPreviewMarker?.(null);
@@ -217,6 +281,7 @@ export function ReplanPanel({
       setPreview(null);
       setExplanation(null);
       setEvents([]);
+      setSituation(null);
       setPhase("applied");
       onPolylinePreview?.(null);
       onPreviewMarker?.(null);
@@ -276,18 +341,38 @@ export function ReplanPanel({
             <p className="text-sm text-ink-muted">지금 다시 계획할 수 있는 일정이 없어요.</p>
           ) : (
             <>
-              {explanation && (
-                <div className="flex flex-col gap-2 border-b border-line pb-3">
-                  <p className="text-xs font-medium text-ink-muted">여행 흐름이 조금 달라졌어요</p>
-                  <p className="font-medium text-ink">{explanation.title}</p>
-                  <p className="text-sm text-ink-muted">{explanation.summary}</p>
-                  {explanation.reasons.length > 0 && (
-                    <ul className="flex flex-col gap-1 text-sm text-ink-muted">
-                      {explanation.reasons.map((r, i) => (
-                        <li key={i}>· {r}</li>
-                      ))}
-                    </ul>
+              {/* Section A — 여행에 어떤 변화가 생겼는가. Real weatherRisk/
+                  trafficBurden only; hidden entirely when there's nothing
+                  to say (e.g. a manual Re:Plan with no real signal). */}
+              {situation && (
+                <div className="flex flex-col gap-1">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                    {(() => {
+                      const Icon = SITUATION_ICON[situation.kind] ?? CloudRain;
+                      return <Icon className="size-3.5 text-brand" aria-hidden />;
+                    })()}
+                    {situation.line}
+                  </p>
+                  {situation.tier === "notable" && situation.impact && (
+                    <p className="text-sm text-ink">{situation.impact}</p>
                   )}
+                </div>
+              )}
+
+              {/* Sections B+D — 영향받는 일정 / 무엇만 바꾸는가: one ordered
+                  list of the WHOLE trip's slots so it's obvious only the
+                  changed one(s) move and everything else visibly holds still. */}
+              <AffectedScheduleOverview slots={preview.slots} />
+
+              {/* Section C — 무엇을 지키는가: real Trip Preference axes only;
+                  `highlights` is `[]` (nothing rendered) when there's no real
+                  preference data to show — never a fabricated "지켜야 할 경험". */}
+              <ExperienceHighlightsRow highlights={highlights} />
+
+              {explanation && (explanation.title || explanation.summary || explanation.cautions.length > 0) && (
+                <div className="flex flex-col gap-2 border-t border-line pt-3">
+                  {explanation.title && <p className="font-medium text-ink">{explanation.title}</p>}
+                  {explanation.summary && <p className="text-sm text-ink-muted">{explanation.summary}</p>}
                   {explanation.cautions.length > 0 && (
                     <ul className="flex flex-col gap-1 text-sm text-warning">
                       {explanation.cautions.map((c, i) => (
@@ -298,99 +383,95 @@ export function ReplanPanel({
                       ))}
                     </ul>
                   )}
-                  {changedSlots.length > 0 && (
-                    <p className="text-sm font-medium text-ink">나머지 일정은 그대로 유지합니다.</p>
-                  )}
                 </div>
               )}
 
+              {/* Section E — 왜 이 장소인가: only the slots that actually change. */}
               <ul className="flex flex-col gap-3">
-                {preview.slots.map((s) => {
-                  if (s.action === "KEEP") {
+                {preview.slots
+                  .filter((s) => s.action === "REPLACE")
+                  .map((s) => {
+                    const description = explanation?.placeDescriptions.find(
+                      (d) => d.itineraryOrder === s.itineraryOrder,
+                    );
+                    const reason = explanation?.slotReasons.find((r) => r.itineraryOrder === s.itineraryOrder);
+                    const event = events.find((e) => e.itineraryOrder === s.itineraryOrder);
+                    const facts = buildReasonFacts({ slot: s, situation, highlights, reason: reason?.reason });
+
                     return (
-                      <li key={s.itineraryOrder} className="text-sm">
-                        <span className="tabular-nums text-ink-muted">{s.current.time}</span>{" "}
-                        <span className="text-ink">{s.current.placeName} · 기존 유지</span>
+                      <li
+                        key={s.itineraryOrder}
+                        className="flex flex-col gap-3 overflow-hidden rounded-xl border border-line"
+                      >
+                        <div className="flex items-center gap-1.5 px-3 pt-3 text-xs">
+                          <span className="tabular-nums text-ink-muted">{s.current.time}</span>
+                          <span className="text-ink-muted">{s.current.placeName}</span>
+                          <ArrowRight className="size-3 shrink-0 text-ink-muted" aria-hidden />
+                          <span className="font-medium text-ink">{s.proposed?.placeName}</span>
+                        </div>
+
+                        {s.proposed?.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- external TourAPI image, no Next/Image domain config for arbitrary hosts
+                          <img
+                            src={s.proposed.imageUrl}
+                            alt={s.proposed.placeName}
+                            className="h-40 w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 items-center justify-center gap-1.5 bg-surface-alt text-xs text-ink-muted">
+                            <ImageOff className="size-3.5" aria-hidden />
+                            이미지 없음
+                          </div>
+                        )}
+
+                        <div className="flex flex-col gap-2.5 p-3 pt-0">
+                          {s.proposed?.address && (
+                            <p className="flex items-center gap-1 text-xs text-ink-muted">
+                              <MapPin className="size-3 shrink-0" aria-hidden />
+                              {s.proposed.address}
+                            </p>
+                          )}
+                          {description && (
+                            <p className="text-sm leading-relaxed text-ink">{description.description}</p>
+                          )}
+
+                          <MobilitySection
+                            itineraryOrder={s.itineraryOrder}
+                            mobility={s.mobility}
+                            selected={selectedMode[s.itineraryOrder] ?? "DRIVING"}
+                            onSelect={(mode) => pickMode(s.itineraryOrder, s.mobility, mode)}
+                          />
+
+                          {event && (
+                            <p className="flex items-center gap-1.5 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs text-warning">
+                              <Sparkles className="size-3.5 shrink-0" aria-hidden />
+                              지금 진행 중인 행사 · {fmtEventDate(event.startDate)} ~ {fmtEventDate(event.endDate)}
+                            </p>
+                          )}
+
+                          {facts.length > 0 && (
+                            <ul className="flex flex-col gap-1.5 rounded-lg bg-surface-alt p-2.5">
+                              {facts.map((f, i) => {
+                                const Icon = f.icon;
+                                return (
+                                  <li key={i} className="flex items-start gap-1.5 text-xs">
+                                    <Icon className="mt-0.5 size-3.5 shrink-0 text-brand" aria-hidden />
+                                    <span className="text-ink">
+                                      <span className="font-medium">{f.label}</span>{" "}
+                                      <span className="text-ink-muted">— {f.detail}</span>
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
                       </li>
                     );
-                  }
-
-                  const description = explanation?.placeDescriptions.find((d) => d.itineraryOrder === s.itineraryOrder);
-                  const reason = explanation?.slotReasons.find((r) => r.itineraryOrder === s.itineraryOrder);
-                  const event = events.find((e) => e.itineraryOrder === s.itineraryOrder);
-                  const prevItem = itinerary.find((it) => it.order === s.itineraryOrder - 1);
-                  const nextItem = itinerary.find((it) => it.order === s.itineraryOrder + 1);
-
-                  return (
-                    <li
-                      key={s.itineraryOrder}
-                      className="flex flex-col gap-3 overflow-hidden rounded-xl border border-line"
-                    >
-                      <div className="flex flex-col gap-2.5 p-3 pb-0">
-                        <BeforeAfterFlow
-                          label="기존 여행"
-                          prevPlaceName={prevItem?.placeName}
-                          currentPlaceName={s.current.placeName}
-                          nextPlaceName={nextItem?.placeName}
-                        />
-                        <BeforeAfterFlow
-                          label="Re:Plan"
-                          prevPlaceName={prevItem?.placeName}
-                          currentPlaceName={s.proposed?.placeName ?? s.current.placeName}
-                          nextPlaceName={nextItem?.placeName}
-                          changed
-                        />
-                      </div>
-
-                      {s.proposed?.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- external TourAPI image, no Next/Image domain config for arbitrary hosts
-                        <img
-                          src={s.proposed.imageUrl}
-                          alt={s.proposed.placeName}
-                          className="h-40 w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-16 items-center justify-center gap-1.5 bg-surface-alt text-xs text-ink-muted">
-                          <ImageOff className="size-3.5" aria-hidden />
-                          이미지 없음
-                        </div>
-                      )}
-
-                      <div className="flex flex-col gap-2.5 p-3 pt-0">
-                        {s.proposed?.address && (
-                          <p className="flex items-center gap-1 text-xs text-ink-muted">
-                            <MapPin className="size-3 shrink-0" aria-hidden />
-                            {s.proposed.address}
-                          </p>
-                        )}
-                        {description && (
-                          <p className="text-sm leading-relaxed text-ink">{description.description}</p>
-                        )}
-
-                        <MobilitySection
-                          itineraryOrder={s.itineraryOrder}
-                          mobility={s.mobility}
-                          selected={selectedMode[s.itineraryOrder] ?? "DRIVING"}
-                          onSelect={(mode) => pickMode(s.itineraryOrder, s.mobility, mode)}
-                        />
-
-                        {event && (
-                          <p className="flex items-center gap-1.5 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs text-warning">
-                            <Sparkles className="size-3.5 shrink-0" aria-hidden />
-                            지금 진행 중인 행사 · {fmtEventDate(event.startDate)} ~ {fmtEventDate(event.endDate)}
-                          </p>
-                        )}
-                        {reason && (
-                          <p className="flex items-start gap-1.5 text-xs text-ink-muted">
-                            <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-brand" aria-hidden />
-                            {reason.reason}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
+                  })}
               </ul>
+
+              <ConsideredFactorsDisclosure situation={situation} highlights={highlights} slots={preview.slots} />
             </>
           )}
 
@@ -429,51 +510,153 @@ export function ReplanPanel({
 }
 
 /**
- * (STEP 19 §5) A compact ✓/●/○ mini-timeline around the changed slot — the
- * SAME completed/current/upcoming visual language ItineraryPlaces already
- * uses (STEP 17), stacked "기존 여행" then "Re:Plan" so the ONE thing that's
- * different (the current stop) is obvious at a glance, and everything
- * around it visibly holds still. `changed` marks only the slot that
- * actually differs between the two flows.
+ * Sections B+D (STEP 21) — "영향받는 일정" / "무엇만 바꾸는가" as ONE ordered
+ * list of the whole trip's slots (not just the changed one's neighbors), so
+ * the core message reads without extra copy: only a few rows carry the
+ * "변경" mark, everything else stays "그대로". Renders nothing when nothing
+ * changed — an empty Preview never claims a change that isn't there.
  */
-function BeforeAfterFlow({
-  label,
-  prevPlaceName,
-  currentPlaceName,
-  nextPlaceName,
-  changed,
-}: {
-  label: string;
-  prevPlaceName?: string;
-  currentPlaceName: string;
-  nextPlaceName?: string;
-  changed?: boolean;
-}) {
+function AffectedScheduleOverview({ slots }: { slots: ReplanSlotProposal[] }) {
+  const changed = slots.filter((s) => s.action === "REPLACE");
+  if (changed.length === 0) return null;
   return (
-    <div className="flex flex-col gap-1">
-      <p className="text-xs font-medium text-ink-muted">{label}</p>
-      <ol className="flex flex-col gap-0.5 text-sm">
-        {prevPlaceName && (
-          <li className="flex items-center gap-1.5 text-ink-muted">
-            <span aria-hidden>✓</span>
-            {prevPlaceName}
+    <div className="flex flex-col gap-2 rounded-xl bg-surface-alt p-3">
+      <p className="text-sm font-medium text-ink">
+        {changed.length === 1
+          ? "이번 변화로 이 일정만 다시 맞춰볼게요."
+          : `이번 변화로 이 일정 ${changed.length}개만 다시 맞춰볼게요.`}
+      </p>
+      <ol className="flex flex-col gap-1.5 text-sm">
+        {slots.map((s) => (
+          <li key={s.itineraryOrder} className="flex items-center gap-2">
+            {s.action === "KEEP" ? (
+              <Check className="size-3.5 shrink-0 text-ink-muted" aria-hidden />
+            ) : (
+              <ArrowRight className="size-3.5 shrink-0 text-brand" aria-hidden />
+            )}
+            <span className="tabular-nums text-ink-muted">{s.current.time}</span>
+            <span className={s.action === "REPLACE" ? "font-medium text-ink" : "text-ink-muted"}>
+              {s.action === "REPLACE" ? (s.proposed?.placeName ?? s.current.placeName) : s.current.placeName}
+            </span>
+            <span className="ms-auto shrink-0 text-xs text-ink-muted">
+              {s.action === "REPLACE" ? "변경" : "그대로"}
+            </span>
           </li>
-        )}
-        <li className="flex items-center gap-1.5 font-medium text-ink">
-          <span aria-hidden>●</span>
-          {currentPlaceName}
-          {changed && (
-            <span className="rounded-full bg-brand/10 px-1.5 py-0.5 text-xs font-medium text-brand">변경</span>
-          )}
-        </li>
-        {nextPlaceName && (
-          <li className="flex items-center gap-1.5 text-ink-muted">
-            <span aria-hidden>○</span>
-            {nextPlaceName}
-          </li>
-        )}
+        ))}
       </ol>
+      <p className="text-xs text-ink-muted">나머지 일정은 그대로예요.</p>
     </div>
+  );
+}
+
+/**
+ * Section C (STEP 21) — "원래 여행에서 지키고 싶은 경험": real Trip
+ * Preference axes only (`topExperienceHighlights`, features/replan). Renders
+ * nothing for `[]` — no highlight row is ever invented for a trip with no
+ * real preference data.
+ */
+function ExperienceHighlightsRow({ highlights }: { highlights: ExperienceHighlight[] }) {
+  if (highlights.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs font-medium text-ink-muted">원래 여행에서 지키고 싶은 경험</p>
+      <ul className="flex flex-wrap gap-1.5">
+        {highlights.map((h) => {
+          const Icon = PREFERENCE_ICON[h.key];
+          return (
+            <li
+              key={h.key}
+              className="flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs text-ink"
+            >
+              <Icon className="size-3.5 text-brand" aria-hidden />
+              {h.label}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+interface ReasonFact {
+  icon: typeof CloudRain;
+  label: string;
+  detail: string;
+}
+
+/**
+ * Section E (STEP 21) — "왜 이 장소인가", as short fact chips instead of a
+ * raw score. Every fact is conditioned on real data already present on this
+ * slot/preview; a fact whose backing data is missing is simply never added
+ * (never a placeholder, never "AI가 골랐어요" filler).
+ */
+function buildReasonFacts({
+  slot,
+  situation,
+  highlights,
+  reason,
+}: {
+  slot: ReplanSlotProposal;
+  situation: SituationMessage | null;
+  highlights: ExperienceHighlight[];
+  reason?: string;
+}): ReasonFact[] {
+  const facts: ReasonFact[] = [];
+  if (situation && (situation.kind === "weather" || situation.kind === "mixed")) {
+    facts.push({ icon: CloudRain, label: "지금 상황에 맞아요", detail: "지금 상황에서도 무리 없이 이어갈 수 있어요." });
+  }
+  const driving = slot.mobility.find((m) => m.mode === "DRIVING" && m.available);
+  if (driving) {
+    facts.push({
+      icon: Car,
+      label: "이동 부담이 적어요",
+      detail: `현재 위치에서 실제 이동 경로 기준 약 ${driving.durationMinutes}분이에요.`,
+    });
+  }
+  if (highlights.length > 0) {
+    facts.push({
+      icon: Heart,
+      label: "원래 여행과 잘 이어져요",
+      detail: `${highlights.map((h) => h.label).join(", ")} 경험을 최대한 유지해요.`,
+    });
+  }
+  if (reason) {
+    facts.push({ icon: Lightbulb, label: "이 장소를 고른 이유", detail: reason });
+  }
+  return facts;
+}
+
+/**
+ * §11 — a small, optional, collapsed-by-default disclosure naming only the
+ * GENERIC real factor categories actually in play for this preview (never a
+ * candidate/score table). Hidden entirely when none apply.
+ */
+function ConsideredFactorsDisclosure({
+  situation,
+  highlights,
+  slots,
+}: {
+  situation: SituationMessage | null;
+  highlights: ExperienceHighlight[];
+  slots: ReplanSlotProposal[];
+}) {
+  const factors: string[] = [];
+  if (highlights.length > 0) factors.push("여행에서 지키고 싶었던 경험");
+  if (situation) factors.push("지금 상황");
+  if (slots.some((s) => s.mobility.some((m) => m.available))) factors.push("실제 이동 경로");
+  if (slots.some((s) => s.action === "REPLACE")) factors.push("남은 일정");
+  if (factors.length === 0) return null;
+  return (
+    <details className="rounded-lg border border-line px-3 text-xs text-ink-muted">
+      <summary className="flex min-h-11 cursor-pointer items-center font-medium text-ink">
+        이 장소를 고를 때 고려한 것
+      </summary>
+      <ul className="flex flex-col gap-0.5 pb-2.5">
+        {factors.map((f) => (
+          <li key={f}>· {f}</li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

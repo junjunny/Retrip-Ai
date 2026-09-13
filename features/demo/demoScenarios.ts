@@ -89,6 +89,8 @@ export interface DemoScenario {
    * number that isn't real.
    */
   impactLine: string;
+  /** (STEP 21) which icon the situation banner/Preview should use — see `SituationKind`'s doc comment on why "crowd" is demo-only. */
+  situationKind: "weather" | "traffic" | "crowd";
   /** a real, plausible "what this group cares about" — feeds Experience Preservation honestly, like any real trip's Trip Preference. */
   tripPreference: ExperienceProfile;
   /** index into `days` of the day containing the trigger item. */
@@ -171,6 +173,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     cardDescription: "교통 때문에 다음 일정이 밀리는 상황",
     situationLine: "현재 주변 교통이 혼잡해 이동에 시간이 더 걸리고 있어요.",
     impactLine: "지금 속도라면 다음 일정까지 이동 부담이 커질 수 있어요.",
+    situationKind: "traffic",
     tripPreference: neutralProfile({ culture: 10, photo: 8, relax: 6 }),
     triggerDayIndex: 0,
     demoClockLabel: "15:45",
@@ -272,6 +275,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     cardDescription: "갑작스러운 비로 야외 일정이 흔들리는 상황",
     situationLine: "갑작스러운 소나기가 내리고 있어요.",
     impactLine: "지금 계획대로 진행하면 원래 기대했던 야외 경험과 달라질 수 있어요.",
+    situationKind: "weather",
     // nature/photo/relax all raised together — see the verification note
     // above on why raising `nature` alone leaves too thin a real margin.
     tripPreference: neutralProfile({ nature: 10, photo: 9, relax: 8 }),
@@ -343,6 +347,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     cardDescription: "방문객 증가로 일정의 이동 부담이 커지는 상황",
     situationLine: "연예인 축제로 주변에 많은 인파가 몰리고 있어요.",
     impactLine: "지금 인파라면 남은 일정을 편하게 이어가기 어려울 수 있어요.",
+    situationKind: "crowd",
     // nature/photo/relax all raised together — see the verification note
     // above on why raising `nature` alone leaves too thin a real margin.
     tripPreference: neutralProfile({ nature: 10, photo: 9, relax: 8 }),

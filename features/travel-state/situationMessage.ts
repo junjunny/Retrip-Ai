@@ -29,9 +29,20 @@
 import type { RiskLevel } from "@/types";
 
 export type SituationTier = "gentle" | "notable";
+/**
+ * Which signal this message is about — lets a caller pick a matching icon
+ * without re-deriving it from the line's text (STEP 21). `buildSituationMessage`
+ * (real Travel State) only ever produces "weather"/"traffic"/"mixed" — "crowd"
+ * exists solely for a scripted Demo scenario (e.g. 대전's 인파 혼잡), which has
+ * no real visitor-count signal wired into Travel State (see
+ * features/demo/demoScenarios.ts's verification notes) and is never
+ * presented as if it were.
+ */
+export type SituationKind = "weather" | "traffic" | "mixed" | "crowd";
 
 export interface SituationMessage {
   tier: SituationTier;
+  kind: SituationKind;
   /** "상황" — what changed, in calm, non-alarming language. */
   line: string;
   /** "영향" — where it actually bites, in THIS trip. Only present for "notable": a "gentle" tier is deliberately just the one soft line, nothing more. Uses a real number (scheduleDelayMinutes) when one exists; otherwise a qualitative-but-honest line, never a fabricated figure. */
@@ -53,6 +64,7 @@ export function buildSituationMessage(
   if (weatherRisk === "high") {
     return {
       tier: "notable",
+      kind: trafficBurden === "high" ? "mixed" : "weather",
       line: "여행에 비가 찾아왔어요.",
       impact: "다음 장소를 실내에서 이어가도 좋아요.",
     };
@@ -61,6 +73,7 @@ export function buildSituationMessage(
     const delay = scheduleDelayMinutes != null && scheduleDelayMinutes > 0 ? Math.round(scheduleDelayMinutes) : null;
     return {
       tier: "notable",
+      kind: "traffic",
       line: "이동 시간이 조금 길어졌어요.",
       impact:
         delay !== null
@@ -69,7 +82,7 @@ export function buildSituationMessage(
     };
   }
   if (weatherRisk === "medium" || trafficBurden === "medium") {
-    return { tier: "gentle", line: "여행 흐름이 조금 달라졌어요." };
+    return { tier: "gentle", kind: weatherRisk === "medium" ? "weather" : "traffic", line: "여행 흐름이 조금 달라졌어요." };
   }
   return null;
 }

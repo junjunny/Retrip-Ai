@@ -2,19 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import { buildSituationMessage } from "@/features/travel-state/situationMessage";
 
-describe("buildSituationMessage (STEP 18/19/20)", () => {
+describe("buildSituationMessage (STEP 18/19/20/21)", () => {
   it("returns a 'notable' weather message when weatherRisk is high, regardless of traffic", () => {
     expect(buildSituationMessage("high", "low", null)).toEqual({
       tier: "notable",
+      kind: "weather",
       line: "여행에 비가 찾아왔어요.",
       impact: "다음 장소를 실내에서 이어가도 좋아요.",
     });
-    expect(buildSituationMessage("high", "high", 20)!.tier).toBe("notable");
+    const both = buildSituationMessage("high", "high", 20)!;
+    expect(both.tier).toBe("notable");
+    expect(both.kind).toBe("mixed");
   });
 
   it("falls back to a 'notable' traffic message when only trafficBurden is high, using a real delay number when given", () => {
     expect(buildSituationMessage("low", "high", 25)).toEqual({
       tier: "notable",
+      kind: "traffic",
       line: "이동 시간이 조금 길어졌어요.",
       impact: "지금 속도라면 다음 일정까지 여유가 약 25분 줄어들 수 있어요.",
     });
@@ -28,10 +32,12 @@ describe("buildSituationMessage (STEP 18/19/20)", () => {
   it("returns a 'gentle' tier (line only, no impact/action) for a medium signal on either axis", () => {
     expect(buildSituationMessage("medium", "low", null)).toEqual({
       tier: "gentle",
+      kind: "weather",
       line: "여행 흐름이 조금 달라졌어요.",
     });
     expect(buildSituationMessage("low", "medium", null)).toEqual({
       tier: "gentle",
+      kind: "traffic",
       line: "여행 흐름이 조금 달라졌어요.",
     });
   });

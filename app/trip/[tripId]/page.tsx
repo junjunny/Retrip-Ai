@@ -1,6 +1,6 @@
 "use client";
 
-import { Car, Compass } from "lucide-react";
+import { Car, CloudRain, Compass, Users } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 
@@ -32,6 +32,8 @@ type State =
 
 const fmtDate = (d: string) => d.split("-").join(".");
 const fmtDistance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`);
+/** Matches `SituationKind` (features/travel-state/situationMessage.ts) — a real icon, never emoji, per the existing StyleSeed convention. */
+const SITUATION_ICON = { weather: CloudRain, traffic: Car, mixed: CloudRain, crowd: Users } as const;
 
 export default function TripDetailPage({
   params,
@@ -249,7 +251,7 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
   // already established.
   const situation: SituationMessage | null = demoScenario
     ? atTrigger
-      ? { tier: "notable", line: demoScenario.situationLine, impact: demoScenario.impactLine }
+      ? { tier: "notable", kind: demoScenario.situationKind, line: demoScenario.situationLine, impact: demoScenario.impactLine }
       : null
     : realSituation;
 
@@ -347,7 +349,10 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
           <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt px-4 py-3">
             <div className="flex flex-col gap-1">
               <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-                <Compass className="size-3.5 text-brand" aria-hidden />
+                {(() => {
+                  const Icon = SITUATION_ICON[situation.kind] ?? Compass;
+                  return <Icon className="size-3.5 text-brand" aria-hidden />;
+                })()}
                 {situation.line}
               </p>
               {situation.impact && <p className="text-sm text-ink">{situation.impact}</p>}
@@ -379,6 +384,8 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
         <ReplanPanel
           tripId={trip.tripId}
           itinerary={trip.itinerary}
+          tripPreference={trip.tripPreference}
+          fallbackSituation={situation}
           onApplied={handleReplanApplied}
           onPolylinePreview={setPreviewPolyline}
           onPreviewMarker={setPreviewMarker}
