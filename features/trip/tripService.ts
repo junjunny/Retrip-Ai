@@ -6,10 +6,11 @@
 import { doc, getDoc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 
 import { getFirestoreDb } from "@/lib/firebase/client";
-import type { Trip } from "@/types";
+import type { DesiredPlace, Trip } from "@/types";
 
 import {
   coerceDemoScenarioId,
+  coerceDesiredPlaces,
   coerceItinerary,
   coerceTripPreference,
   generateTripId,
@@ -71,6 +72,7 @@ export async function createTrip(draft: TripDraft): Promise<string> {
       // participant-averaged Experience Profile" (see types/index.ts).
       tripPreference: draft.tripPreference ?? null,
       demoScenarioId: draft.demoScenarioId ?? null,
+      desiredPlaces: draft.desiredPlaces ?? [],
       createdAt: serverTimestamp(),
       status: "active",
     });
@@ -97,6 +99,49 @@ export async function getTrip(tripId: string): Promise<Trip | null> {
     status: data.status === "completed" ? "completed" : "active",
     tripPreference: coerceTripPreference(data.tripPreference),
     demoScenarioId: coerceDemoScenarioId(data.demoScenarioId),
+    desiredPlaces: coerceDesiredPlaces(data.desiredPlaces),
   };
+}
+
+/**
+ * Auto-confirms every itinerary item whose `placeName` exactly matches one of
+ * `desiredPlaces` (STEP 18 §3-6) — no `/resolve` search needed, since a
+ * desired place was already resolved once, live, when the creator picked it
+ * in Trip Create (`/api/place/search`). Same PATCH shape a human clicking
+ * "이 장소로 선택" sends (features/demo/demoService.ts uses the same pattern
+ * after a search; this skips the search entirely because the coordinates are
+ * already known). Best-effort per item — one failing PATCH never blocks the
+ * rest, and the item simply stays "장소를 확인해주세요", exactly like any
+ * real unconfirmed item.
+ */
+export async function confirmDesiredPlaces(tripId: string, desiredPlaces: readonly DesiredPlace[]): Promise<void> {
+  if (desiredPlaces.length === 0) return;
+  const trip = await getTrip(tripId);
+  if (!trip) return;
+  const byName = new Map(desiredPlaces.map((p) => [p.placeName, p]));
+
+  for (const item of trip.itinerary) {
+    if (item.placeConfirmed) continue;
+    const dp = byName.get(item.placeName);
+    if (!dp) continue;
+    try {
+      await fetch(`/api/trip/${tripId}/itinerary`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          order: item.order,
+          place: {
+            placeId: dp.placeId,
+            placeName: dp.placeName,
+            address: dp.address,
+            latitude: dp.latitude,
+            longitude: dp.longitude,
+          },
+        }),
+      });
+    } catch {
+      // best-effort — see doc comment.
+    }
+  }
 }
 

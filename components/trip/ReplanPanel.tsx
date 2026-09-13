@@ -16,6 +16,7 @@ import {
 import { useState } from "react";
 
 import type { PreviewMarker } from "@/components/trip/TripMap";
+import { toPlaceSearchResults, type PlaceSearchResult } from "@/features/trip";
 import type { ItineraryItem, MobilityMode, MobilityOption, RoutePolylinePoint } from "@/types";
 
 /**
@@ -97,7 +98,7 @@ export function ReplanPanel({
   onApplied,
   onPolylinePreview,
   onPreviewMarker,
-  demoOrigin,
+  journeyOrigin,
 }: {
   tripId: string;
   /** for the "마지막 완료 장소에서 출발" origin shortcut (STEP 13 §6) — never used for anything else here. */
@@ -108,13 +109,15 @@ export function ReplanPanel({
   /** lets the trip-level map show the winning candidate's own pin during Preview (STEP 17 §20) — `null` clears it. */
   onPreviewMarker?: (marker: PreviewMarker | null) => void;
   /**
-   * (STEP 17 §15) The demo journey's current item, already known to be
-   * "where the traveler is right now" — pre-fills `origin` with it so Demo
-   * never shows "출발 — 선택 안 함" without the user having to click
-   * "직접 장소 선택" first. `undefined`/`null` for every ordinary trip,
-   * which leaves origin selection exactly as manual as it's always been.
+   * (STEP 17/18) The trip's current itinerary item, already known to be
+   * "where the traveler is right now" — pre-fills `origin` with it so
+   * neither an ordinary trip nor a demo trip ever shows "출발 — 선택 안 함"
+   * without the user having to click "직접 장소 선택" first. `undefined`/
+   * `null` before the traveler has a confirmed current item (e.g. a
+   * brand-new trip whose first item isn't resolved yet) — origin selection
+   * then falls back to exactly as manual as it's always been.
    */
-  demoOrigin?: (LatLng & { placeName: string }) | null;
+  journeyOrigin?: (LatLng & { placeName: string }) | null;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<ReplanPreview | null>(null);
@@ -128,12 +131,12 @@ export function ReplanPanel({
   const [originSearchOpen, setOriginSearchOpen] = useState(false);
   const lastCompleted = lastCompletedLocation(itinerary);
 
-  // A manual pick always wins; otherwise (STEP 17 §15) fall back to the demo
+  // A manual pick always wins; otherwise (STEP 17/18) fall back to the
   // journey's own current-item location — a derived value, never written
   // into `origin` itself, so it re-derives automatically as the journey
   // moves on without ever overwriting something the user picked by hand.
   const effectiveOrigin =
-    origin ?? (demoOrigin ? { ...demoOrigin, label: `현재 위치 · ${demoOrigin.placeName}` } : null);
+    origin ?? (journeyOrigin ? { ...journeyOrigin, label: `현재 위치 · ${journeyOrigin.placeName}` } : null);
 
   // per-slot selected mobility mode (map polyline follows this), STEP 13 §12
   const [selectedMode, setSelectedMode] = useState<Record<number, MobilityMode>>({});
@@ -531,14 +534,6 @@ function OriginPicker({
   );
 }
 
-interface ResolvedCandidate {
-  key: string;
-  name: string;
-  address: string | null;
-  latitude: number;
-  longitude: number;
-}
-
 function OriginSearch({
   tripId,
   onPick,
@@ -548,7 +543,7 @@ function OriginSearch({
 }) {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
-  const [results, setResults] = useState<ResolvedCandidate[]>([]);
+  const [results, setResults] = useState<PlaceSearchResult[]>([]);
 
   async function search() {
     if (!query.trim()) return;
@@ -557,17 +552,7 @@ function OriginSearch({
       const res = await fetch(`/api/trip/${tripId}/resolve?q=${encodeURIComponent(query.trim())}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "failed");
-      const place = data.place;
-      const opts: ResolvedCandidate[] = [];
-      if (place.verificationStatus !== "unresolved" && place.latitude != null) {
-        opts.push({ key: "primary", name: place.placeName, address: place.roadAddress ?? place.address, latitude: place.latitude, longitude: place.longitude });
-      }
-      for (const c of place.candidates ?? []) {
-        if (c.latitude != null && c.longitude != null) {
-          opts.push({ key: `${opts.length}`, name: c.name, address: c.address, latitude: c.latitude, longitude: c.longitude });
-        }
-      }
-      setResults(opts);
+      setResults(toPlaceSearchResults(data.place));
       setState("idle");
     } catch {
       setState("error");
@@ -586,6 +571,7 @@ function OriginSearch({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          aria-label="출발할 장소 검색"
           placeholder="출발할 장소 이름"
           className="min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-sm text-ink outline-none focus:border-brand"
         />

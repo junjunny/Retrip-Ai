@@ -30,12 +30,18 @@ type Sheet =
  * A multi-day trip gets Day N tabs (STEP 15 §6/§8) — the map always mirrors
  * whichever day's items the list currently shows, so marker numbers and the
  * visible sequence never disagree.
+ *
+ * The ✓/●/○ completed/current/upcoming hierarchy (STEP 17, generalized to
+ * every trip in STEP 18 — not a demo-only branch) is driven purely by each
+ * item's real `status` and the `currentOrder` the caller computed from it
+ * (`app/trip/[tripId]/page.tsx`'s `firstCurrentOrder`) — a brand-new trip
+ * with every item still "planned" simply shows its first item as current,
+ * the same rule a demo trip's pre-completed lead-in uses.
  */
 export function ItineraryPlaces({
   trip,
   overlayPolyline,
   previewMarker,
-  isDemo,
   currentOrder,
   demoDisplayTimes,
 }: {
@@ -44,11 +50,9 @@ export function ItineraryPlaces({
   overlayPolyline?: RoutePolylinePoint[] | null;
   /** the Re:Plan candidate's own pin during Preview (STEP 17 §20) — see ReplanPanel's `onPreviewMarker`. */
   previewMarker?: PreviewMarker | null;
-  /** STEP 17 — the ✓/●/○ journey hierarchy and map centering are demo-journey-only; every ordinary trip renders exactly as before. */
-  isDemo?: boolean;
-  /** the demo journey's current itinerary `order`, or `null` once the trip is finished. Ignored when `isDemo` is falsy. */
+  /** the trip's current itinerary `order` (STEP 17/18), or `null` once every item is completed. */
   currentOrder?: number | null;
-  /** order -> the scenario's own scripted clock reading (STEP 17) — shown instead of the item's real stored `time`, which is internal Re:Plan-eligibility plumbing, not a real schedule (see demoScenarios.ts's `buildDemoItinerary`). Ignored when `isDemo` is falsy. */
+  /** order -> a demo scenario's own scripted clock reading (STEP 17) — shown instead of the item's real stored `time`, which for a DEMO trip is internal Re:Plan-eligibility plumbing, not a real schedule (see demoScenarios.ts's `buildDemoItinerary`). Omitted for every ordinary trip, which always shows its real `item.time`. */
   demoDisplayTimes?: Record<number, string>;
 }) {
   const [items, setItems] = useState<ItineraryItem[]>(trip.itinerary ?? []);
@@ -105,7 +109,7 @@ export function ItineraryPlaces({
           activeOrder={null}
           onSelectOrder={() => {}}
           routePolyline={overlayPolyline}
-          currentOrder={isDemo ? currentOrder : null}
+          currentOrder={currentOrder}
           previewMarker={previewMarker}
         />
         <p className="text-sm text-ink-muted">등록된 일정이 없습니다.</p>
@@ -140,7 +144,7 @@ export function ItineraryPlaces({
         activeOrder={activeOrder}
         onSelectOrder={setActiveOrder}
         routePolyline={overlayPolyline}
-        currentOrder={isDemo ? currentOrder : null}
+        currentOrder={currentOrder}
         previewMarker={previewMarker}
       />
 
@@ -149,39 +153,25 @@ export function ItineraryPlaces({
           const active = item.order === activeOrder;
           const hasCoords = item.latitude != null && item.longitude != null;
           const isLast = i === visibleItems.length - 1;
-          const isDone = isDemo && item.status === "completed";
-          const isCurrent = isDemo && item.order === currentOrder;
-          const displayTime = (isDemo && demoDisplayTimes?.[item.order]) || item.time;
+          const isDone = item.status === "completed";
+          const isCurrent = item.order === currentOrder;
+          const displayTime = demoDisplayTimes?.[item.order] || item.time;
           return (
             <li key={item.order} className={`relative flex gap-3 pb-4 ${isDone ? "opacity-50" : ""}`}>
-              {/* order badge + connecting line (visual flow only — no fabricated time) */}
+              {/* completed/current/upcoming badge + connecting line (visual flow only — no fabricated time) */}
               <div className="flex flex-col items-center">
-                {isDemo ? (
-                  <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                      isCurrent
-                        ? "bg-accent text-accent-ink ring-2 ring-accent/40"
-                        : isDone
-                          ? "bg-surface-alt text-ink-muted"
-                          : "bg-surface-alt text-ink-muted/60 ring-1 ring-inset ring-line"
-                    }`}
-                    aria-label={isDone ? "완료" : isCurrent ? "지금" : "다음"}
-                  >
-                    {isDone ? "✓" : isCurrent ? "●" : "○"}
-                  </span>
-                ) : (
-                  <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                      hasCoords
-                        ? item.placeConfirmed
-                          ? "bg-brand text-brand-ink"
-                          : "bg-surface-alt text-ink-muted ring-1 ring-inset ring-line"
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                    isCurrent
+                      ? "bg-accent text-accent-ink ring-2 ring-accent/40"
+                      : isDone
+                        ? "bg-surface-alt text-ink-muted"
                         : "bg-surface-alt text-ink-muted/60 ring-1 ring-inset ring-line"
-                    }`}
-                  >
-                    {item.order}
-                  </span>
-                )}
+                  }`}
+                  aria-label={isDone ? "완료" : isCurrent ? "지금" : "다음"}
+                >
+                  {isDone ? "✓" : isCurrent ? "●" : "○"}
+                </span>
                 {!isLast && <span className="mt-1 w-px flex-1 bg-line" aria-hidden />}
               </div>
 

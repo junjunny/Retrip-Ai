@@ -85,6 +85,35 @@ export interface Trip {
    * every trip created the normal way (i.e. almost all trips).
    */
   demoScenarioId: string | null;
+  /**
+   * STEP 18 — real, resolved places the creator wanted to visit, picked
+   * during Trip Create before the itinerary existed (see
+   * `features/trip/trip.ts`'s `distributeDesiredPlaces`). A record of INTENT,
+   * kept even after the itinerary is generated/edited — never re-read by
+   * Re:Plan, scoring, or candidate generation, and never mutated once the
+   * trip exists. `[]` for a trip whose creator skipped this step (the large
+   * majority, including every trip that predates STEP 18) — itinerary
+   * generation falls back to exactly the STEP 1-15 manual-row behavior.
+   */
+  desiredPlaces: DesiredPlace[];
+}
+
+/**
+ * One real, resolved place a creator picked in "이번 여행에서 가고 싶은 곳"
+ * before the itinerary existed (STEP 18). Coordinates always come from a real
+ * `/api/place/search` (TourAPI + Kakao Local) result — never guessed. Not an
+ * `ItineraryItem`: it carries no date/time/order, only intent — see
+ * `distributeDesiredPlaces` for how it becomes one.
+ */
+export interface DesiredPlace {
+  placeId: string | null;
+  placeName: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  source: PlaceSource;
+  /** ISO instant, set client-side at the moment of selection (STEP 18) — not a Firestore serverTimestamp, since this lives inside an array field. */
+  selectedAt: string;
 }
 
 /** Survey status for a participant (Phase 2). */

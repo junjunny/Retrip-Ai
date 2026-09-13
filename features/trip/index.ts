@@ -7,3 +7,5 @@
 export * from "./trip";
 export * from "./tripService";
 export * from "./itineraryPlace";
+export * from "./placeSearchResults";
+export * from "./journeyMessages";

@@ -1,15 +1,19 @@
 "use client";
 
-import { AlertCircle, Plus, X } from "lucide-react";
+import { AlertCircle, Check, MapPin, Plus, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { PreferenceScale } from "@/components/shared/PreferenceScale";
 import {
   applyRowPatch,
+  confirmDesiredPlaces,
   createTrip,
+  distributeDesiredPlaces,
+  toPlaceSearchResults,
   tripDates,
   TripValidationError,
+  type PlaceSearchResult,
 } from "@/features/trip";
 import type { ItineraryDraft, ItineraryRow } from "@/features/trip";
 import {
@@ -17,7 +21,7 @@ import {
   PREFERENCE_LABELS,
   defaultPreferenceVector,
 } from "@/features/participant/participant";
-import type { ExperienceProfile, PreferenceKey, ScheduleType } from "@/types";
+import type { DesiredPlace, ExperienceProfile, PreferenceKey, ScheduleType } from "@/types";
 
 let rowSeq = 0;
 const newRow = (date: string, time = "10:00"): ItineraryRow => ({
@@ -52,6 +56,8 @@ export function TripCreateForm() {
   const [endDate, setEndDate] = useState("");
   const [rows, setRows] = useState<ItineraryRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  // STEP 18 — "이번 여행에서 가고 싶은 곳", picked before the itinerary exists.
+  const [desiredPlaces, setDesiredPlaces] = useState<DesiredPlace[]>([]);
   const [tripPreference, setTripPreference] = useState<ExperienceProfile>(defaultPreferenceVector());
   // STEP 13: the section always holds a default vector for the UI to render,
   // but that default must NOT be saved as if the user chose it — only a real
@@ -94,19 +100,31 @@ export function TripCreateForm() {
     setSubmitting(true);
     setErrors([]);
     try {
+      const manualRows: ItineraryDraft[] = rows.map(({ date, time, placeName, scheduleType }) => ({
+        date,
+        time,
+        placeName,
+        scheduleType,
+      }));
+      // STEP 18 §6/§7: desiredPlaces=[] returns manualRows completely
+      // unchanged — a creator who skips this step gets exactly the STEP
+      // 1-15 manual-entry behavior, nothing new in the path.
+      const itinerary = distributeDesiredPlaces(desiredPlaces, days, manualRows);
+
       const tripId = await createTrip({
         title,
         destination,
         startDate,
         endDate,
-        itinerary: rows.map(({ date, time, placeName, scheduleType }) => ({
-          date,
-          time,
-          placeName,
-          scheduleType,
-        })),
+        itinerary,
         tripPreference: tripPreferenceTouched ? tripPreference : undefined,
+        desiredPlaces,
       });
+      // Best-effort: the desired places' already-known real coordinates get
+      // written onto their generated itinerary rows. A failure here still
+      // leaves a completely usable trip (those rows just start
+      // "장소를 확인해주세요", same as any manually-typed row).
+      await confirmDesiredPlaces(tripId, desiredPlaces).catch(() => {});
       router.push(`/trip/${tripId}`);
     } catch (err) {
       setErrors(
@@ -172,6 +190,14 @@ export function TripCreateForm() {
             />
           </label>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <StepHeading>이번 여행에서 가고 싶은 곳</StepHeading>
+        <p className="text-sm text-ink-muted">
+          먼저 가고 싶은 장소를 골라주세요. 시간과 동선을 고려해 여행 순서를 구성해드려요.
+        </p>
+        <DesiredPlacePicker value={desiredPlaces} onChange={setDesiredPlaces} />
       </div>
 
       <fieldset className="flex min-w-0 flex-col gap-4">
@@ -303,6 +329,153 @@ export function TripCreateForm() {
         {submitting ? "여행을 만들고 있습니다..." : "여행 만들기"}
       </button>
     </form>
+  );
+}
+
+/**
+ * "이번 여행에서 가고 싶은 곳" (STEP 18 §3/§4) — searches the same real
+ * TourAPI + Kakao Local pipeline every other place lookup in this app uses
+ * (`/api/place/search`, a pre-trip sibling of `/api/trip/{id}/resolve`),
+ * never a blind first result. Selecting a result stores its ALREADY-REAL
+ * coordinates — nothing here ever invents a location. Order here is only a
+ * WISH list (§4); `distributeDesiredPlaces` decides the actual itinerary
+ * order deterministically by real geography, not by this list's order.
+ */
+function DesiredPlacePicker({
+  value,
+  onChange,
+}: {
+  value: DesiredPlace[];
+  onChange: (next: DesiredPlace[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [results, setResults] = useState<PlaceSearchResult[]>([]);
+  const selectedNames = useMemo(() => new Set(value.map((p) => p.placeName)), [value]);
+
+  async function search() {
+    if (!query.trim()) return;
+    setState("loading");
+    try {
+      const res = await fetch(`/api/place/search?q=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "failed");
+      setResults(toPlaceSearchResults(data.place));
+      setState("idle");
+    } catch {
+      setState("error");
+    }
+  }
+
+  function add(r: PlaceSearchResult) {
+    if (selectedNames.has(r.name)) return;
+    const place: DesiredPlace = {
+      placeId: r.placeId,
+      placeName: r.name,
+      address: r.address,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      source: r.source,
+      selectedAt: new Date().toISOString(),
+    };
+    onChange([...value, place]);
+  }
+
+  function remove(placeName: string) {
+    onChange(value.filter((p) => p.placeName !== placeName));
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* a plain div, never a nested <form> — this whole picker lives inside
+          Trip Create's own outer <form>, and HTML forbids nesting forms
+          (an inner <form>'s submit button silently submits the OUTER form
+          instead once the browser auto-corrects the invalid nesting). */}
+      <div className="flex gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void search();
+            }
+          }}
+          aria-label="가고 싶은 장소 검색"
+          placeholder="가고 싶은 장소를 검색해보세요"
+          className={`${fieldBase} min-w-0 flex-1`}
+        />
+        <button
+          type="button"
+          onClick={() => void search()}
+          aria-label="검색"
+          className="flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface px-3 text-ink"
+        >
+          <Search className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      {state === "loading" && <p className="text-xs text-ink-muted">찾는 중...</p>}
+      {state === "error" && <p className="text-xs text-danger">찾지 못했어요. 다시 검색해주세요.</p>}
+
+      {results.length > 0 && (
+        <ul className="flex flex-col divide-y divide-line rounded-xl border border-line">
+          {results.map((r) => {
+            const added = selectedNames.has(r.name);
+            return (
+              <li key={r.key} className="flex items-center gap-2 px-3 py-2.5">
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm font-medium text-ink">{r.name}</span>
+                  {r.address && <span className="truncate text-xs text-ink-muted">{r.address}</span>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => add(r)}
+                  disabled={added}
+                  aria-label={added ? `${r.name} 추가됨` : `${r.name} 추가`}
+                  className={`flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border text-sm transition-colors ${
+                    added
+                      ? "border-line bg-surface-alt text-success"
+                      : "border-line text-ink hover:border-brand hover:text-brand"
+                  }`}
+                >
+                  {added ? <Check className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {value.length > 0 && (
+        <ol className="flex flex-col divide-y divide-line rounded-xl border border-line bg-surface-alt">
+          {value.map((p, i) => (
+            <li key={p.placeName} className="flex items-center gap-2 px-3 py-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-brand-ink">
+                {i + 1}
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-sm font-medium text-ink">{p.placeName}</span>
+                {p.address && (
+                  <span className="flex items-center gap-1 truncate text-xs text-ink-muted">
+                    <MapPin className="size-3 shrink-0" aria-hidden />
+                    {p.address}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(p.placeName)}
+                aria-label={`${p.placeName} 삭제`}
+                className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-line text-ink-muted"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 

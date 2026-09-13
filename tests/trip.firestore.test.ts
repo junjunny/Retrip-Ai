@@ -136,6 +136,7 @@ d("createTrip + getTrip", () => {
       [
         "createdAt",
         "demoScenarioId",
+        "desiredPlaces",
         "destination",
         "endDate",
         "itinerary",
@@ -188,6 +189,29 @@ d("createTrip + getTrip", () => {
 
     const demo = await makeTrip({ demoScenarioId: "jeonju" });
     expect((await getTrip(demo))!.demoScenarioId).toBe("jeonju");
+  });
+
+  it("STEP 18 — desiredPlaces is [] for a normal trip and round-trips exactly when set", async () => {
+    const normal = await makeTrip();
+    expect((await getTrip(normal))!.desiredPlaces).toEqual([]);
+
+    const withDesired = await makeTrip({
+      desiredPlaces: [
+        {
+          placeId: "kakao:123",
+          placeName: "경기전",
+          address: "전북 전주시 완산구",
+          latitude: 35.815,
+          longitude: 127.151,
+          source: "kakao",
+          selectedAt: "2026-09-11T00:00:00.000Z",
+        },
+      ],
+    });
+    const trip = await getTrip(withDesired);
+    expect(trip!.desiredPlaces).toHaveLength(1);
+    expect(trip!.desiredPlaces[0].placeName).toBe("경기전");
+    expect(trip!.desiredPlaces[0].latitude).toBe(35.815);
   });
 
   it("TEST 8 — rejects an invalid draft before any write", async () => {

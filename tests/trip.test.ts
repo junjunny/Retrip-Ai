@@ -4,10 +4,13 @@ import {
   applyItineraryEdit,
   applyRowPatch,
   coerceDemoScenarioId,
+  coerceDesiredPlaces,
   coerceTripPreference,
+  distributeDesiredPlaces,
   dropRow,
   generateTripId,
   markItemCompleted,
+  nearestNeighborOrder,
   normalizeItinerary,
   removeItineraryItem,
   renumberItinerary,
@@ -386,5 +389,79 @@ describe("markItemCompleted (STEP 17)", () => {
 
   it("is a no-op when the order doesn't exist", () => {
     expect(markItemCompleted(items, 99)).toEqual(items);
+  });
+});
+
+describe("coerceDesiredPlaces (STEP 18)", () => {
+  it("[]/non-array -> []", () => {
+    expect(coerceDesiredPlaces(undefined)).toEqual([]);
+    expect(coerceDesiredPlaces(null)).toEqual([]);
+    expect(coerceDesiredPlaces("nope")).toEqual([]);
+  });
+
+  it("drops entries missing a name or real coordinates, keeps valid ones", () => {
+    const raw = [
+      { placeName: "경기전", latitude: 35.8, longitude: 127.15, source: "kakao", selectedAt: "2026-09-11T00:00:00Z" },
+      { placeName: "", latitude: 1, longitude: 1 }, // no name
+      { placeName: "좌표없음" }, // no coords
+      { placeName: 42, latitude: 1, longitude: 1 }, // wrong type
+    ];
+    const out = coerceDesiredPlaces(raw);
+    expect(out).toHaveLength(1);
+    expect(out[0].placeName).toBe("경기전");
+    expect(out[0].source).toBe("kakao");
+  });
+});
+
+describe("nearestNeighborOrder (STEP 18)", () => {
+  it("visits the closest unvisited point at each step (deterministic, real distance)", () => {
+    // A --- B ------------- C  (A=0, B=1, C=10 on a line of "degrees")
+    const a = { id: "A", latitude: 35.0, longitude: 127.0 };
+    const b = { id: "B", latitude: 35.01, longitude: 127.0 };
+    const c = { id: "C", latitude: 35.5, longitude: 127.0 };
+    expect(nearestNeighborOrder([a, c, b]).map((p) => p.id)).toEqual(["A", "B", "C"]);
+  });
+
+  it("is a no-op for 0 or 1 places", () => {
+    expect(nearestNeighborOrder([])).toEqual([]);
+    const one = [{ latitude: 1, longitude: 1 }];
+    expect(nearestNeighborOrder(one)).toEqual(one);
+  });
+});
+
+describe("distributeDesiredPlaces (STEP 18)", () => {
+  const place = (placeName: string, latitude: number, longitude: number) => ({ placeName, latitude, longitude });
+
+  it("returns existingRows completely unchanged when desiredPlaces is empty (§7 — manual creation path untouched)", () => {
+    const existing = [{ date: "2026-09-11", time: "18:00", placeName: "베테랑 칼국수", scheduleType: "fixed" as const }];
+    expect(distributeDesiredPlaces([], ["2026-09-11"], existing)).toEqual(existing);
+    expect(distributeDesiredPlaces([], [], existing)).toEqual(existing);
+  });
+
+  it("distributes places across days in order and marks every generated row flexible", () => {
+    const desired = [place("A", 35.0, 127.0), place("B", 35.5, 127.0), place("C", 36.0, 127.0)];
+    const out = distributeDesiredPlaces(desired, ["2026-09-11", "2026-09-12"], []);
+    expect(out.every((r) => r.scheduleType === "flexible")).toBe(true);
+    const day1 = out.filter((r) => r.date === "2026-09-11").map((r) => r.placeName);
+    const day2 = out.filter((r) => r.date === "2026-09-12").map((r) => r.placeName);
+    expect(day1).toEqual(["A", "B"]); // ceil(3/2)=2 per day
+    expect(day2).toEqual(["C"]);
+  });
+
+  it("never collides with an existing row's (date,time) — nudges forward until free", () => {
+    const existing = [{ date: "2026-09-11", time: "10:00", placeName: "고정 예약", scheduleType: "fixed" as const }];
+    const desired = [place("A", 35.0, 127.0)];
+    const out = distributeDesiredPlaces(desired, ["2026-09-11"], existing);
+    const generated = out.find((r) => r.placeName === "A")!;
+    // desired places default to 10:00 — must have nudged past the fixed 10:00 reservation.
+    expect(generated.time).not.toBe("10:00");
+    expect(out).toContainEqual(existing[0]);
+  });
+
+  it("is deterministic given the same inputs", () => {
+    const desired = [place("A", 35.0, 127.0), place("B", 35.2, 127.1)];
+    const a = distributeDesiredPlaces(desired, ["2026-09-11"], []);
+    const b = distributeDesiredPlaces(desired, ["2026-09-11"], []);
+    expect(a).toEqual(b);
   });
 });

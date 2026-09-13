@@ -23,3 +23,5 @@ export {
   pickNextPendingItem,
 } from "./travelState";
 export type { TravelStateInput } from "./travelState";
+export { buildSituationMessage } from "./situationMessage";
+export type { SituationMessage } from "./situationMessage";

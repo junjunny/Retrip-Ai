@@ -12,7 +12,9 @@ import {
   PREFERENCE_MIN,
   coercePreferenceVector,
 } from "@/features/participant/participant";
-import type { ExperienceProfile, ItineraryItem, ScheduleType } from "@/types";
+import { minutesToTime } from "@/lib/kst";
+import { haversineMeters } from "@/lib/place/match";
+import type { DesiredPlace, ExperienceProfile, ItineraryItem, ScheduleType } from "@/types";
 
 /** "HH:mm", 24-hour, leading zeros required (09:00 ok, 9:0 not). */
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -63,6 +65,8 @@ export interface TripDraft {
   tripPreference?: ExperienceProfile;
   /** STEP 16 — set only when this trip is created from `/demo`. See types/index.ts's `Trip.demoScenarioId`. */
   demoScenarioId?: string;
+  /** STEP 18 — real places picked in "이번 여행에서 가고 싶은 곳" before the itinerary existed. See types/index.ts's `Trip.desiredPlaces`. */
+  desiredPlaces?: DesiredPlace[];
 }
 
 /**
@@ -125,6 +129,117 @@ export function coerceTripPreference(value: unknown): ExperienceProfile | null {
 /** Reads a stored `demoScenarioId` field. Any non-string -> `null` (STEP 16). Pure. */
 export function coerceDemoScenarioId(value: unknown): string | null {
   return typeof value === "string" && value ? value : null;
+}
+
+/** Reads a stored `desiredPlaces` array. Any malformed entry (missing name/coords) is dropped, never guessed. `[]` for a missing/non-array field (every trip before STEP 18). Pure. */
+export function coerceDesiredPlaces(value: unknown): DesiredPlace[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw): DesiredPlace[] => {
+    if (typeof raw !== "object" || raw === null) return [];
+    const p = raw as Record<string, unknown>;
+    if (typeof p.placeName !== "string" || !p.placeName.trim()) return [];
+    if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return [];
+    return [
+      {
+        placeId: typeof p.placeId === "string" ? p.placeId : null,
+        placeName: p.placeName,
+        address: typeof p.address === "string" ? p.address : null,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        source: p.source === "tour-korservice" ? "tour-korservice" : "kakao",
+        selectedAt: typeof p.selectedAt === "string" ? p.selectedAt : "",
+      },
+    ];
+  });
+}
+
+// ---------------------------------------------------------------------------
+// desiredPlaces -> itinerary rows (STEP 18)
+// ---------------------------------------------------------------------------
+
+/** The minimum a desired place needs to be placed into an itinerary — a resolved, real coordinate pair. */
+export interface DesiredPlaceInput {
+  placeName: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** Suggested first stop of a day, and the gap between consecutive desired-place stops — a scheduling default, same spirit as a manually-added row defaulting to "10:00" (NEVER a travel-time estimate; see `distributeDesiredPlaces`'s doc comment). */
+const DESIRED_PLACE_DAY_START_MINUTES = 10 * 60;
+const DESIRED_PLACE_GAP_MINUTES = 90;
+
+/**
+ * Orders places by greedy real-distance nearest-neighbor, starting from the
+ * first one — deterministic, using only real coordinates (`haversineMeters`,
+ * the same distance function candidate generation already uses). Never an
+ * LLM/AI ordering decision (AGENTS-spec, STEP 18 §6).
+ */
+export function nearestNeighborOrder<T extends { latitude: number; longitude: number }>(
+  places: readonly T[],
+): T[] {
+  if (places.length <= 1) return [...places];
+  const remaining = [...places];
+  const route: T[] = [remaining.shift()!];
+  while (remaining.length > 0) {
+    const last = route[route.length - 1];
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+    remaining.forEach((p, i) => {
+      const d = haversineMeters(last.latitude, last.longitude, p.latitude, p.longitude);
+      if (d < bestDistance) {
+        bestDistance = d;
+        bestIndex = i;
+      }
+    });
+    route.push(remaining.splice(bestIndex, 1)[0]);
+  }
+  return route;
+}
+
+/**
+ * Turns "장소들을 골랐다" into itinerary rows, WITHOUT replacing anything the
+ * user already typed manually (STEP 18 §7/§8): `existingRows` (fixed or
+ * flexible) pass through completely unchanged, and desired-place rows only
+ * ever fill (date,time) slots not already occupied by one — nudged forward
+ * in 5-minute steps until free, so a desired place can never silently
+ * overwrite a fixed reservation. `desiredPlaces: []` returns `existingRows`
+ * as-is: the STEP 1-15 manual-entry path is completely untouched.
+ *
+ * Places are split across `days` in order (chunked, not round-robin) and
+ * ordered within each day by `nearestNeighborOrder` — real geography, never
+ * an LLM route decision. Every generated row is `scheduleType: "flexible"`
+ * (a desired place is a wish, never a fixed booking) and gets a scheduling
+ * default start time + a fixed gap between stops — NEVER a travel-time
+ * ESTIMATE (straight-line distance / average speed is explicitly banned,
+ * STEP 18 §10): the real gap between stops is only ever known once real
+ * Kakao Mobility runs, after the trip and its itinerary already exist.
+ */
+export function distributeDesiredPlaces(
+  desiredPlaces: readonly DesiredPlaceInput[],
+  days: readonly string[],
+  existingRows: readonly ItineraryDraft[],
+): ItineraryDraft[] {
+  if (desiredPlaces.length === 0 || days.length === 0) return [...existingRows];
+
+  const perDay = Math.ceil(desiredPlaces.length / days.length);
+  const occupied = new Set(existingRows.map((r) => `${r.date || days[0]} ${r.time}`));
+  const generated: ItineraryDraft[] = [];
+
+  for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
+    const date = days[dayIndex];
+    const chunk = desiredPlaces.slice(dayIndex * perDay, (dayIndex + 1) * perDay);
+    if (chunk.length === 0) continue;
+
+    let minutes = DESIRED_PLACE_DAY_START_MINUTES;
+    for (const place of nearestNeighborOrder(chunk)) {
+      while (occupied.has(`${date} ${minutesToTime(minutes)}`)) minutes += 5;
+      const time = minutesToTime(minutes);
+      occupied.add(`${date} ${time}`);
+      generated.push({ date, time, placeName: place.placeName, scheduleType: "flexible" });
+      minutes += DESIRED_PLACE_GAP_MINUTES;
+    }
+  }
+  return [...existingRows, ...generated];
 }
 
 /**

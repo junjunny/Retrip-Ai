@@ -23,6 +23,7 @@
  * Nothing here is read by Travel State, candidate generation, scoring, or
  * Re:Plan — a demo trip earns its result the same way any real trip would.
  */
+import { JOURNEY_GENERIC_CLOSING_MESSAGE, JOURNEY_GENERIC_CONTINUE_MESSAGE } from "@/features/trip/journeyMessages";
 import { addDays, minutesToTime, timeToMinutes } from "@/lib/kst";
 import type { ExperienceProfile, ScheduleType } from "@/types";
 
@@ -107,10 +108,15 @@ function neutralProfile(overrides: Partial<ExperienceProfile>): ExperienceProfil
   };
 }
 
-/** Shown after completing an item whose current place isn't one of the scenario's scripted names (i.e. Re:Plan changed it) — never invents a fact about the real, emergent replacement. */
-export const DEMO_GENERIC_CONTINUE_MESSAGE = "여기까지 잘 다녀오셨나요? 다음 목적지로 이동해볼게요.";
-/** Same, but for the trip's last item — no "다음 목적지" to point to. */
-export const DEMO_GENERIC_CLOSING_MESSAGE = "즐거운 여행이었나요? 계획이 달라져도 여행은 계속되니까요.";
+// Re-exported for backward compatibility with existing demo call sites —
+// the actual definitions live in features/trip/journeyMessages.ts (STEP 18
+// §32): the generic journey mechanism must not depend on the demo-specific
+// module, so the dependency runs demo -> generic, never the reverse. Used
+// here only once Re:Plan has changed a place away from what the scenario
+// scripted (i.e. the live place no longer matches `completionMessage`) —
+// never invents a fact about the real, emergent replacement.
+export const DEMO_GENERIC_CONTINUE_MESSAGE = JOURNEY_GENERIC_CONTINUE_MESSAGE;
+export const DEMO_GENERIC_CLOSING_MESSAGE = JOURNEY_GENERIC_CLOSING_MESSAGE;
 
 /**
  * Real-API verification notes (STEP 16 — never hardcode the *result*, only
