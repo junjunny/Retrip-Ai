@@ -2,17 +2,20 @@
  * PATCH  /api/trip/{tripId}/itinerary
  *   { order, place: { placeId, placeName, address, latitude, longitude } }  — confirm a place
  *   { order, edit:  { date?, time?, placeName?, scheduleType? } }           — edit schedule fields
+ *   { order, complete: true }                                                — mark completed (STEP 17)
  * DELETE /api/trip/{tripId}/itinerary   { order }                          — delete an item
  *
  * All go through the Admin SDK (trip doc is client-immutable). A place
  * confirmation never changes order/date/time/scheduleType/status; an edit
- * renumbers and (on a name change) clears the resolved place. Returns { itinerary }.
+ * renumbers and (on a name change) clears the resolved place; `complete`
+ * touches only `status`. Returns { itinerary }.
  */
 import {
   deleteItineraryItem,
   editItineraryItem,
   InvalidItineraryEditError,
   ItineraryItemNotFoundError,
+  markItineraryItemCompleted,
   TripNotFoundError,
   updateItineraryPlace,
 } from "@/features/trip/tripAdminService";
@@ -112,6 +115,9 @@ export async function PATCH(
         return Response.json({ error: "수정 값을 확인해주세요." }, { status: 400 });
       }
       return Response.json({ itinerary: await editItineraryItem(tripId, order, edit) });
+    }
+    if (body.complete === true) {
+      return Response.json({ itinerary: await markItineraryItemCompleted(tripId, order) });
     }
     return Response.json({ error: "요청 값을 확인해주세요." }, { status: 400 });
   } catch (err) {

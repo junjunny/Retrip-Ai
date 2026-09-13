@@ -13,7 +13,14 @@
  *    automatically picking the top real search hit, the same outcome a
  *    human would get by picking the first suggested candidate — an
  *    unresolved place (e.g. a generic placeholder name with no real match)
- *    is left honestly unconfirmed, same as the real flow.
+ *    is left honestly unconfirmed, same as the real flow. A few items
+ *    (e.g. "전주 숙소") carry a real `resolveAddress` instead and resolve by
+ *    address (`/resolve?addr=`) rather than by name.
+ * 3. (STEP 17) Marks every item before the scenario's "starting current"
+ *    item completed — via the exact same `{ order, complete: true }` PATCH
+ *    a real traveler's own "여기까지 완료했어요" click sends — so the trip
+ *    opens already a few steps into its day, not at item 1 (see
+ *    `startingCurrentOrder`'s doc comment).
  *
  * Client-side only (uses the browser Firestore SDK + `fetch`), same trust
  * boundary as trip creation and place confirmation already have.
@@ -21,7 +28,7 @@
 import { createTrip, getTrip } from "@/features/trip";
 import { nowKst } from "@/lib/kst";
 
-import { buildDemoItinerary, type DemoScenario } from "./demoScenarios";
+import { buildDemoItinerary, startingCurrentOrder, type DemoScenario } from "./demoScenarios";
 
 export interface DemoStartProgress {
   resolved: number;
@@ -32,7 +39,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // Stay comfortably clear of the per-trip resolve cooldown (1s) — see lib/rateLimit.ts.
 const RESOLVE_SPACING_MS = 1_100;
 
-/** Builds the scenario's itinerary, creates the trip, then resolves every place. Returns the new tripId. */
+/** Builds the scenario's itinerary, creates the trip, resolves every place, then pre-completes the lead-in items. Returns the new tripId. */
 export async function startDemo(
   scenario: DemoScenario,
   onProgress?: (p: DemoStartProgress) => void,
@@ -67,12 +74,21 @@ export async function startDemo(
   let anchor: { latitude: number; longitude: number } | null = null;
   for (let i = 0; i < total; i++) {
     const item = trip.itinerary[i];
+    // `built` and `trip.itinerary` share the same order (buildDemoItinerary
+    // anchors every same-day item's real time so the sort it feeds into can
+    // never reshuffle them — see that function's doc comment), so index i
+    // in both arrays is the same scenario item.
     onProgress?.({ resolved: i, total });
-    const resolved = await resolveAndConfirm(tripId, item.order, item.placeName, anchor);
+    const resolved = await resolveAndConfirm(tripId, item.order, built[i], anchor);
     if (resolved) anchor = resolved;
     if (i < total - 1) await sleep(RESOLVE_SPACING_MS);
   }
   onProgress?.({ resolved: total, total });
+
+  const startingCurrent = startingCurrentOrder(scenario);
+  for (let order = 1; order < startingCurrent; order++) {
+    await markCompleted(tripId, order);
+  }
 
   return tripId;
 }
@@ -80,12 +96,14 @@ export async function startDemo(
 async function resolveAndConfirm(
   tripId: string,
   order: number,
-  placeName: string,
+  item: { placeName: string; resolveAddress?: string },
   anchor: { latitude: number; longitude: number } | null,
 ): Promise<{ latitude: number; longitude: number } | null> {
   try {
-    const params = new URLSearchParams({ q: placeName });
-    if (anchor) {
+    const params = item.resolveAddress
+      ? new URLSearchParams({ addr: item.resolveAddress })
+      : new URLSearchParams({ q: item.placeName });
+    if (!item.resolveAddress && anchor) {
       params.set("lat", String(anchor.latitude));
       params.set("lng", String(anchor.longitude));
     }
@@ -105,7 +123,7 @@ async function resolveAndConfirm(
         order,
         place: {
           placeId: place.placeId,
-          placeName: place.placeName,
+          placeName: item.resolveAddress ? item.placeName : place.placeName,
           address: place.roadAddress ?? place.address,
           latitude: place.latitude,
           longitude: place.longitude,
@@ -116,5 +134,19 @@ async function resolveAndConfirm(
   } catch {
     // best-effort — a place that fails to resolve just stays unconfirmed, exactly like a real user's flow would.
     return null;
+  }
+}
+
+async function markCompleted(tripId: string, order: number): Promise<void> {
+  try {
+    await fetch(`/api/trip/${tripId}/itinerary`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ order, complete: true }),
+    });
+  } catch {
+    // best-effort — a lead-in item that fails to mark completed just stays
+    // "planned"; the journey UI's own "여기까지 완료했어요" button still
+    // lets the traveler move past it by hand.
   }
 }

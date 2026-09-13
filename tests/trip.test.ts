@@ -7,6 +7,7 @@ import {
   coerceTripPreference,
   dropRow,
   generateTripId,
+  markItemCompleted,
   normalizeItinerary,
   removeItineraryItem,
   renumberItinerary,
@@ -366,5 +367,24 @@ describe("coerceDemoScenarioId (STEP 16)", () => {
 
   it("a real string round-trips exactly", () => {
     expect(coerceDemoScenarioId("jeonju")).toBe("jeonju");
+  });
+});
+
+describe("markItemCompleted (STEP 17)", () => {
+  const items: ItineraryItem[] = [
+    { order: 1, date: "2026-09-11", time: "10:00", placeId: null, placeName: "A", address: null, latitude: null, longitude: null, scheduleType: "flexible", status: "planned", placeConfirmed: false },
+    { order: 2, date: "2026-09-11", time: "12:00", placeId: null, placeName: "B", address: null, latitude: null, longitude: null, scheduleType: "flexible", status: "planned", placeConfirmed: false },
+  ];
+
+  it("marks only the matching order completed, touching nothing else", () => {
+    const next = markItemCompleted(items, 1);
+    expect(next[0].status).toBe("completed");
+    expect(next[1].status).toBe("planned");
+    expect(next[0].time).toBe("10:00");
+    expect(next[0].placeName).toBe("A");
+  });
+
+  it("is a no-op when the order doesn't exist", () => {
+    expect(markItemCompleted(items, 99)).toEqual(items);
   });
 });

@@ -15,6 +15,7 @@ import {
   applyItineraryEdit,
   coerceItinerary,
   coerceTripPreference,
+  markItemCompleted,
   removeItineraryItem,
   tripDates,
   type ItineraryEdit,
@@ -126,6 +127,23 @@ export async function editItineraryItem(
     }
   }
   const next = applyItineraryEdit(items, order, edit);
+  await ref.update({ itinerary: next });
+  return next;
+}
+
+/**
+ * Marks one item completed (STEP 17). Never renumbers, never touches
+ * date/time/place — see `markItemCompleted`.
+ */
+export async function markItineraryItemCompleted(
+  tripId: string,
+  order: number,
+): Promise<ItineraryItem[]> {
+  const { ref, items } = await loadItems(tripId);
+  if (!items.some((it) => it.order === order)) {
+    throw new ItineraryItemNotFoundError(order);
+  }
+  const next = markItemCompleted(items, order);
   await ref.update({ itinerary: next });
   return next;
 }

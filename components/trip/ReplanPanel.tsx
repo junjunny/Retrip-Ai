@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import type { PreviewMarker } from "@/components/trip/TripMap";
 import type { ItineraryItem, MobilityMode, MobilityOption, RoutePolylinePoint } from "@/types";
 
 /**
@@ -31,7 +32,13 @@ interface ReplanSlotProposal {
   itineraryOrder: number;
   action: "KEEP" | "REPLACE";
   current: { placeName: string; time: string };
-  proposed: { placeName: string; address: string | null; imageUrl: string | null } | null;
+  proposed: {
+    placeName: string;
+    address: string | null;
+    imageUrl: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  } | null;
   mobility: MobilityOption[];
 }
 interface ReplanPreview {
@@ -89,6 +96,8 @@ export function ReplanPanel({
   itinerary,
   onApplied,
   onPolylinePreview,
+  onPreviewMarker,
+  demoOrigin,
 }: {
   tripId: string;
   /** for the "마지막 완료 장소에서 출발" origin shortcut (STEP 13 §6) — never used for anything else here. */
@@ -96,6 +105,16 @@ export function ReplanPanel({
   onApplied: (itinerary: ItineraryItem[]) => void;
   /** lets the trip-level map show the winning candidate's real route geometry (STEP 13 §11) — `null` clears it. */
   onPolylinePreview?: (polyline: RoutePolylinePoint[] | null) => void;
+  /** lets the trip-level map show the winning candidate's own pin during Preview (STEP 17 §20) — `null` clears it. */
+  onPreviewMarker?: (marker: PreviewMarker | null) => void;
+  /**
+   * (STEP 17 §15) The demo journey's current item, already known to be
+   * "where the traveler is right now" — pre-fills `origin` with it so Demo
+   * never shows "출발 — 선택 안 함" without the user having to click
+   * "직접 장소 선택" first. `undefined`/`null` for every ordinary trip,
+   * which leaves origin selection exactly as manual as it's always been.
+   */
+  demoOrigin?: (LatLng & { placeName: string }) | null;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<ReplanPreview | null>(null);
@@ -109,6 +128,13 @@ export function ReplanPanel({
   const [originSearchOpen, setOriginSearchOpen] = useState(false);
   const lastCompleted = lastCompletedLocation(itinerary);
 
+  // A manual pick always wins; otherwise (STEP 17 §15) fall back to the demo
+  // journey's own current-item location — a derived value, never written
+  // into `origin` itself, so it re-derives automatically as the journey
+  // moves on without ever overwriting something the user picked by hand.
+  const effectiveOrigin =
+    origin ?? (demoOrigin ? { ...demoOrigin, label: `현재 위치 · ${demoOrigin.placeName}` } : null);
+
   // per-slot selected mobility mode (map polyline follows this), STEP 13 §12
   const [selectedMode, setSelectedMode] = useState<Record<number, MobilityMode>>({});
 
@@ -119,21 +145,30 @@ export function ReplanPanel({
       const res = await fetch(`/api/trip/${tripId}/replan/preview`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ currentLocation: origin }),
+        body: JSON.stringify({ currentLocation: effectiveOrigin }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "failed");
       const p = data.preview as ReplanPreview;
       setPreview(p);
-      setPreviewOrigin(origin);
+      setPreviewOrigin(effectiveOrigin);
       setExplanation((data.explanation as ReplanExplanation | undefined) ?? null);
       setEvents((data.events as ReplanEvent[] | undefined) ?? []);
       setPhase("preview");
 
-      // show the first REPLACE slot's real driving route on the map, if any.
+      // show the first REPLACE slot's real driving route + candidate pin on the map, if any.
       const firstReplace = p.slots.find((s) => s.action === "REPLACE");
       const driving = firstReplace?.mobility.find((m) => m.mode === "DRIVING" && m.available);
       onPolylinePreview?.(driving?.polyline ?? null);
+      onPreviewMarker?.(
+        firstReplace?.proposed?.latitude != null && firstReplace.proposed.longitude != null
+          ? {
+              latitude: firstReplace.proposed.latitude,
+              longitude: firstReplace.proposed.longitude,
+              label: firstReplace.proposed.placeName,
+            }
+          : null,
+      );
       if (firstReplace) setSelectedMode((m) => ({ ...m, [firstReplace.itineraryOrder]: "DRIVING" }));
     } catch {
       setError("계획을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.");
@@ -148,6 +183,7 @@ export function ReplanPanel({
     setEvents([]);
     setPhase("idle");
     onPolylinePreview?.(null);
+    onPreviewMarker?.(null);
   }
 
   async function applyPlan() {
@@ -181,6 +217,7 @@ export function ReplanPanel({
       setEvents([]);
       setPhase("applied");
       onPolylinePreview?.(null);
+      onPreviewMarker?.(null);
     } catch {
       setError("적용하지 못했습니다. 잠시 후 다시 시도해주세요.");
       setPhase("error");
@@ -205,7 +242,7 @@ export function ReplanPanel({
         <>
           <OriginPicker
             tripId={tripId}
-            origin={origin}
+            origin={effectiveOrigin}
             lastCompleted={lastCompleted}
             open={originSearchOpen}
             setOpen={setOriginSearchOpen}
@@ -347,7 +384,7 @@ export function ReplanPanel({
                 disabled={applying}
                 className="min-h-11 flex-1 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink transition-opacity disabled:opacity-60"
               >
-                {applying ? "적용하는 중..." : "이 계획 적용"}
+                {applying ? "변경하는 중..." : "이 일정으로 변경"}
               </button>
               <button
                 type="button"

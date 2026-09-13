@@ -110,6 +110,8 @@ export interface ItineraryMarker {
   latitude: number;
   longitude: number;
   confirmed: boolean;
+  /** STEP 17 — lets the map dim a completed stop the same way the list does. */
+  status: ItineraryItem["status"];
 }
 
 /** Map markers — only items that actually have coordinates. Never invents any. */
@@ -123,6 +125,7 @@ export function itineraryMarkers(items: ItineraryItem[]): ItineraryMarker[] {
             latitude: it.latitude,
             longitude: it.longitude,
             confirmed: it.placeConfirmed,
+            status: it.status,
           },
         ]
       : [],

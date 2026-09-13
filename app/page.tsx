@@ -39,7 +39,7 @@ export default function Home() {
           여행 시작하기
         </Link>
         <Link href="/demo" className="text-sm text-ink-muted underline-offset-4 hover:text-brand hover:underline">
-          Re:Trip 먼저 체험하기 →
+          다른 사람의 여행 일정 보기 →
         </Link>
         <a href="#how-it-works" className="text-xs text-ink-muted/70 underline-offset-4 hover:text-brand hover:underline">
           먼저 둘러보기 ↓

@@ -58,7 +58,7 @@ export default function DemoPage() {
       <Link href="/" className="text-sm text-ink-muted hover:text-brand hover:underline">
         ← Re:Trip AI
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Re:Trip 먼저 체험하기</h1>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">다른 사람의 여행 일정 보기</h1>
       <p className="mt-1 text-sm text-ink-muted">
         여행 중 상황이 달라지는 순간을 골라보세요. 실제 여행처럼 일정과 지도를 확인하고, 직접 Re:Plan을 눌러볼 수 있어요.
       </p>
@@ -69,16 +69,17 @@ export default function DemoPage() {
         {DEMO_SCENARIOS.map((s) => (
           <div key={s.id} className="flex flex-col gap-3 py-6 first:pt-0">
             <div>
-              <p className="text-xs text-ink-muted">{s.cardDuration}</p>
-              <h2 className="text-xl font-semibold text-ink">{s.cardTitle}</h2>
+              <h2 className="text-xl leading-snug font-semibold text-ink">{s.cardHeadline}</h2>
+              <p className="mt-1 text-sm text-ink-muted">
+                {s.cardDuration} · {s.cardTitle}
+              </p>
             </div>
-            <p className="text-sm leading-relaxed text-ink-muted">{s.situationLine}</p>
             <button
               type="button"
               onClick={() => void start(s)}
               className="flex min-h-12 items-center justify-center gap-1.5 self-start rounded-xl border border-line px-5 text-sm font-medium text-ink transition-colors hover:border-brand hover:text-brand"
             >
-              체험하기
+              일정 보기
               <ArrowRight className="size-4" aria-hidden />
             </button>
           </div>

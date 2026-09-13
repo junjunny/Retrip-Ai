@@ -273,6 +273,16 @@ export function removeItineraryItem(
   return renumberItinerary(items.filter((it) => it.order !== order));
 }
 
+/**
+ * Marks one item `status: "completed"` (STEP 17 — the demo journey's "여기까지
+ * 완료했어요" step, though nothing about it is demo-specific: it's the same
+ * `status` field STEP 13's candidate filtering already reads). Never touches
+ * date/time/place/order — a completed item is otherwise unchanged. Pure.
+ */
+export function markItemCompleted(items: ItineraryItem[], order: number): ItineraryItem[] {
+  return items.map((it) => (it.order === order ? { ...it, status: "completed" as const } : it));
+}
+
 /** An itinerary draft row with a stable React key (used by the create form). */
 export interface ItineraryRow extends ItineraryDraft {
   key: string;
