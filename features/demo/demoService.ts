@@ -22,13 +22,21 @@
  *    opens already a few steps into its day, not at item 1 (see
  *    `startingCurrentOrder`'s doc comment).
  *
+ * 4. (STEP 22) Seeds the scenario's 3 real travelers through the exact SAME
+ *    `/api/trip/{tripId}/submit` endpoint a human joining via the invite
+ *    link uses — so `groupSatisfaction` scoring (features/scoring/scoring.ts)
+ *    reads their real, genuinely different preference vectors via
+ *    `listPreferenceVectors`, not a single hand-picked aggregate. Runs
+ *    concurrently with place resolution (independent of it) so it adds no
+ *    wall-clock time in the common case.
+ *
  * Client-side only (uses the browser Firestore SDK + `fetch`), same trust
  * boundary as trip creation and place confirmation already have.
  */
 import { createTrip, getTrip } from "@/features/trip";
 import { nowKst } from "@/lib/kst";
 
-import { buildDemoItinerary, startingCurrentOrder, type DemoScenario } from "./demoScenarios";
+import { buildDemoItinerary, startingCurrentOrder, type DemoScenario, type DemoTraveler } from "./demoScenarios";
 
 export interface DemoStartProgress {
   resolved: number;
@@ -62,6 +70,10 @@ export async function startDemo(
     demoScenarioId: scenario.id,
   });
 
+  // Fire-and-forget-until-the-end: real participant seeding doesn't depend on
+  // place resolution, so it runs alongside it (see module doc §4).
+  const travelersSeeded = Promise.all(scenario.travelers.map((t) => submitDemoTraveler(tripId, t)));
+
   const trip = await getTrip(tripId);
   if (!trip) return tripId; // defensive — should never happen right after creation
 
@@ -90,7 +102,33 @@ export async function startDemo(
     await markCompleted(tripId, order);
   }
 
+  await travelersSeeded;
   return tripId;
+}
+
+/**
+ * Creates one real participant + preference document via the ordinary
+ * `/submit` endpoint (the same one `/trip/{tripId}/join` posts to) — best
+ * effort, like `markCompleted`: a traveler who fails to seed just never
+ * joined, the demo still proceeds (the group's `tripPreference` was already
+ * computed statically from the scenario's own vectors — see
+ * demoScenarios.ts — so a seeding hiccup never blanks out Section C).
+ */
+async function submitDemoTraveler(tripId: string, traveler: DemoTraveler): Promise<void> {
+  try {
+    await fetch(`/api/trip/${tripId}/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        nickname: traveler.name,
+        preferences: traveler.preferences,
+        pace: traveler.pace,
+        indoorOutdoor: traveler.indoorOutdoor,
+      }),
+    });
+  } catch {
+    // best-effort — see doc comment above.
+  }
 }
 
 async function resolveAndConfirm(

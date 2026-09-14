@@ -25,3 +25,5 @@ export {
 export type { TravelStateInput } from "./travelState";
 export { buildSituationMessage } from "./situationMessage";
 export type { SituationMessage } from "./situationMessage";
+export { buildDailyOutlook, summarizeForecastSlot } from "./weatherOutlook";
+export type { DailyOutlook, ForecastOutlook, ForecastOutlookKind } from "./weatherOutlook";

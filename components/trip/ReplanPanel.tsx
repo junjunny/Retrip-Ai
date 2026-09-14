@@ -2,31 +2,24 @@
 
 import {
   ArrowRight,
-  Bike,
   Bus,
-  Camera,
   Car,
   Check,
   CloudRain,
-  Coffee,
   Footprints,
   Heart,
   ImageOff,
-  Landmark,
   Lightbulb,
   MapPin,
   Navigation,
   Search,
-  ShoppingBag,
-  Sofa,
   Sparkles,
-  Trees,
   TriangleAlert,
   Users,
-  UtensilsCrossed,
 } from "lucide-react";
 import { useState } from "react";
 
+import { PREFERENCE_ICON } from "@/components/trip/preferenceIcons";
 import type { PreviewMarker } from "@/components/trip/TripMap";
 import { topExperienceHighlights, type ExperienceHighlight } from "@/features/replan";
 import { toPlaceSearchResults, type PlaceSearchResult } from "@/features/trip";
@@ -36,7 +29,6 @@ import type {
   ItineraryItem,
   MobilityMode,
   MobilityOption,
-  PreferenceKey,
   RoutePolylinePoint,
 } from "@/types";
 
@@ -97,18 +89,6 @@ const MODE_ICON: Record<MobilityMode, typeof Footprints> = { WALK: Footprints, D
 const MODE_LABEL: Record<MobilityMode, string> = { WALK: "도보", DRIVING: "자동차", TRANSIT: "대중교통" };
 /** matches SituationKind (features/travel-state/situationMessage.ts) — same icon language page.tsx uses for the passive banner. */
 const SITUATION_ICON = { weather: CloudRain, traffic: Car, mixed: CloudRain, crowd: Users } as const;
-/** one real icon per preference axis (features/participant/participant.ts's PREFERENCE_KEYS) — never emoji. */
-const PREFERENCE_ICON: Record<PreferenceKey, typeof Trees> = {
-  nature: Trees,
-  culture: Landmark,
-  food: UtensilsCrossed,
-  cafe: Coffee,
-  shopping: ShoppingBag,
-  activity: Bike,
-  photo: Camera,
-  relax: Sofa,
-};
-
 const fmtEventDate = (yyyymmdd: string) => `${Number(yyyymmdd.slice(4, 6))}/${Number(yyyymmdd.slice(6, 8))}`;
 const fmtDistance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`);
 

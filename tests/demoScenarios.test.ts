@@ -12,6 +12,7 @@ import {
   startingCurrentOrder,
   triggerOrder,
 } from "@/features/demo/demoScenarios";
+import { buildExperienceProfile } from "@/features/experience";
 import { PREFERENCE_KEYS } from "@/features/participant/participant";
 
 describe("DEMO_SCENARIOS data", () => {
@@ -45,6 +46,44 @@ describe("DEMO_SCENARIOS data", () => {
   it("getDemoScenario finds a known id and returns undefined for an unknown one", () => {
     expect(getDemoScenario("jeonju")?.destination).toBe("전주");
     expect(getDemoScenario("nope")).toBeUndefined();
+  });
+});
+
+describe("DEMO_SCENARIOS travelers (STEP 22)", () => {
+  it("every scenario has 3 travelers with a full integer 1-10 vector, one HOST and two MEMBERs", () => {
+    for (const s of DEMO_SCENARIOS) {
+      expect(s.travelers).toHaveLength(3);
+      expect(s.travelers.filter((t) => t.role === "HOST")).toHaveLength(1);
+      expect(s.travelers.filter((t) => t.role === "MEMBER")).toHaveLength(2);
+      for (const t of s.travelers) {
+        expect(t.name.length).toBeGreaterThan(0);
+        expect(t.blurb.length).toBeGreaterThan(0);
+        for (const key of PREFERENCE_KEYS) {
+          expect(Number.isInteger(t.preferences[key])).toBe(true);
+          expect(t.preferences[key]).toBeGreaterThanOrEqual(1);
+          expect(t.preferences[key]).toBeLessThanOrEqual(10);
+        }
+      }
+    }
+  });
+
+  it("travelers have genuinely different preferences from one another (never a copy-pasted vector)", () => {
+    for (const s of DEMO_SCENARIOS) {
+      const [a, b, c] = s.travelers;
+      expect(a.preferences).not.toEqual(b.preferences);
+      expect(b.preferences).not.toEqual(c.preferences);
+      expect(a.preferences).not.toEqual(c.preferences);
+    }
+  });
+
+  it("tripPreference is the rounded mean of the 3 travelers' real vectors — never a separately hand-picked value", () => {
+    for (const s of DEMO_SCENARIOS) {
+      const mean = buildExperienceProfile(s.travelers.map((t) => t.preferences))!;
+      for (const key of PREFERENCE_KEYS) {
+        expect(s.tripPreference[key]).toBe(Math.round(mean[key]));
+        expect(Number.isInteger(s.tripPreference[key])).toBe(true);
+      }
+    }
   });
 });
 
@@ -130,11 +169,15 @@ describe("buildDemoItinerary", () => {
 });
 
 describe("scenario journey helpers", () => {
-  it("triggerOrder/startingCurrentOrder match the flattened item just before each scenario's trigger", () => {
+  it("triggerOrder points at the flattened trigger item, and startingCurrentOrder is the trigger day's own first item (STEP 22 §3/§13-15)", () => {
     for (const s of DEMO_SCENARIOS) {
       const flat = scenarioFlatItems(s);
       expect(flat[triggerOrder(s) - 1]?.isTrigger).toBe(true);
-      expect(startingCurrentOrder(s)).toBe(triggerOrder(s) - 1);
+      const itemsBeforeTriggerDay = s.days.slice(0, s.triggerDayIndex).reduce((n, d) => n + d.length, 0);
+      expect(startingCurrentOrder(s)).toBe(itemsBeforeTriggerDay + 1);
+      // a judge always has at least one normal "완료 -> 다음" step to take
+      // before reaching the trigger — never landing on it immediately.
+      expect(startingCurrentOrder(s)).toBeLessThan(triggerOrder(s));
     }
   });
 

@@ -452,15 +452,29 @@ function JourneyCard({
   const startingCurrent = demoScenario ? startingCurrentOrder(demoScenario) : null;
 
   if (currentOrder == null || !currentItem) {
+    // (STEP 22 §43) a REAL count, never a fabricated number: an item whose
+    // live place name still matches the scenario's own script was never
+    // Re:Plan'd — the exact same "did Re:Plan change this slot" comparison
+    // `demoCompletionMessage` already uses (see demoScenarios.ts).
+    const changedCount = demoScenario
+      ? trip.itinerary.filter((it) => {
+          const scripted = scenarioFlatItems(demoScenario)[it.order - 1];
+          return scripted && scripted.placeName !== it.placeName;
+        }).length
+      : 0;
     return (
       <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt px-4 py-3">
         <p className="text-sm text-ink">여행이 모두 끝났어요. 계획이 달라져도 여행은 계속되니까요.</p>
         {demoScenario && (
           <>
             <div className="flex flex-col gap-1 border-t border-line pt-2">
-              <p className="text-sm font-medium text-ink">이게 Re:Trip이 여행을 바꾸는 방법입니다.</p>
+              <p className="text-sm font-medium text-ink">
+                원래 여행의 경험을 유지하면서
+                {changedCount > 0 ? ` 필요한 일정만 바꿨어요.` : " 계획대로 이어갔어요."}
+              </p>
               <p className="text-xs leading-relaxed text-ink-muted">
                 전체 일정을 다시 짜는 대신, 달라진 상황에 영향을 받는 부분만 바꿨습니다.
+                {changedCount > 0 && ` 변경된 일정 ${changedCount}개.`}
               </p>
             </div>
             <Link

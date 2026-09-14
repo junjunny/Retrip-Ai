@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { DemoTripSetup } from "@/components/demo/DemoTripSetup";
 import { DEMO_SCENARIOS, startDemo, type DemoScenario, type DemoStartProgress } from "@/features/demo";
+import { getTrip } from "@/features/trip";
+import type { Trip } from "@/types";
 
 /**
  * /demo — STEP 16, rewritten in STEP 19 §2 to lead with WHAT Re:Trip does
@@ -21,18 +24,37 @@ export default function DemoPage() {
   const [starting, setStarting] = useState<DemoScenario | null>(null);
   const [progress, setProgress] = useState<DemoStartProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // (STEP 22 §3/§4) the trip exists and every place is resolved, but the
+  // journey itself hasn't started yet — the "여행 설정 확인" screen shows
+  // first, exactly like a real trip a group planned together and hasn't
+  // left for yet. Re:Plan/Preview/Apply are untouched by any of this.
+  const [ready, setReady] = useState<{ scenario: DemoScenario; trip: Trip } | null>(null);
 
   async function start(scenario: DemoScenario) {
     setStarting(scenario);
     setError(null);
     try {
       const tripId = await startDemo(scenario, setProgress);
-      router.push(`/trip/${tripId}`);
+      const trip = await getTrip(tripId);
+      if (!trip) throw new Error("trip not found right after creation");
+      setReady({ scenario, trip });
+      setStarting(null);
+      setProgress(null);
     } catch {
       setError("여행을 준비하지 못했습니다. 잠시 후 다시 시도해주세요.");
       setStarting(null);
       setProgress(null);
     }
+  }
+
+  if (ready) {
+    return (
+      <DemoTripSetup
+        scenario={ready.scenario}
+        trip={ready.trip}
+        onStart={() => router.push(`/trip/${ready.trip.tripId}`)}
+      />
+    );
   }
 
   if (starting) {

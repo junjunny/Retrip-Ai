@@ -23,9 +23,10 @@
  * Nothing here is read by Travel State, candidate generation, scoring, or
  * Re:Plan — a demo trip earns its result the same way any real trip would.
  */
+import { buildExperienceProfile } from "@/features/experience";
 import { JOURNEY_GENERIC_CLOSING_MESSAGE, journeyGenericContinueMessage } from "@/features/trip/journeyMessages";
 import { addDays, minutesToTime, timeToMinutes } from "@/lib/kst";
-import type { ExperienceProfile, ScheduleType } from "@/types";
+import type { ExperienceProfile, IndoorOutdoor, PreferenceVector, ScheduleType, TravelPace } from "@/types";
 
 /** How far past "now" the situational item is scheduled — enough slack for a judge to click through Home -> Demo -> Trip Detail -> Re:Plan before the clock passes it. */
 export const DEMO_TRIGGER_BUFFER_MINUTES = 20;
@@ -66,6 +67,27 @@ export interface DemoScenarioItem {
   resolveAddress?: string;
 }
 
+/**
+ * (STEP 22) One of a demo trip's 3 real travelers — seeded through the exact
+ * SAME `/api/trip/{tripId}/submit` endpoint a human joining via invite link
+ * uses (see demoService.ts), so `groupSatisfaction` scoring
+ * (features/scoring/scoring.ts) reads their REAL, genuinely different raw
+ * preference vectors, not a single hand-picked aggregate. `role` is a
+ * demo-only presentational label (which name to show first / call "방장") —
+ * it is NEVER written to the real `Participant` Firestore schema, which has
+ * no such field (see features/participant/participant.ts) — a demo trip's
+ * participant documents are indistinguishable from a real trip's.
+ */
+export interface DemoTraveler {
+  name: string;
+  role: "HOST" | "MEMBER";
+  preferences: PreferenceVector;
+  pace: TravelPace;
+  indoorOutdoor: IndoorOutdoor;
+  /** one short, natural-language line of what this person cares about — shown on the pre-trip "여행 설정 확인" screen, never a raw 1-10 number there. */
+  blurb: string;
+}
+
 export interface DemoScenario {
   id: string;
   destination: string;
@@ -91,7 +113,16 @@ export interface DemoScenario {
   impactLine: string;
   /** (STEP 21) which icon the situation banner/Preview should use — see `SituationKind`'s doc comment on why "crowd" is demo-only. */
   situationKind: "weather" | "traffic" | "crowd";
-  /** a real, plausible "what this group cares about" — feeds Experience Preservation honestly, like any real trip's Trip Preference. */
+  /** the 3 real travelers on this trip — see `DemoTraveler`. First entry is the host. */
+  travelers: readonly [DemoTraveler, DemoTraveler, DemoTraveler];
+  /**
+   * The group's real Experience Profile — the arithmetic mean of the 3
+   * travelers' own vectors above (`buildExperienceProfile`, STEP 6's actual
+   * aggregation, never a second formula). Computed once per scenario below,
+   * not authored by hand — so it can never disagree with what
+   * `groupSatisfaction` scoring independently derives from those same 3
+   * vectors via `listPreferenceVectors`.
+   */
   tripPreference: ExperienceProfile;
   /** index into `days` of the day containing the trigger item. */
   triggerDayIndex: number;
@@ -107,18 +138,21 @@ export interface DemoScenario {
   days: DemoScenarioItem[][];
 }
 
-function neutralProfile(overrides: Partial<ExperienceProfile>): ExperienceProfile {
-  return {
-    nature: 5,
-    culture: 5,
-    food: 5,
-    cafe: 5,
-    shopping: 5,
-    activity: 5,
-    photo: 5,
-    relax: 5,
-    ...overrides,
-  };
+/**
+ * The group's real Experience Profile — see `DemoScenario.tripPreference`'s
+ * doc comment. Rounded to whole integers: `createTrip`'s own validation
+ * (features/trip/trip.ts, unchanged — the same rule the "이번 여행은 어떤
+ * 여행인가요?" form's integer 1-10 slider already produces) requires an
+ * integer `tripPreference`, while `buildExperienceProfile`'s group MEAN can
+ * be fractional (e.g. 8.33). Rounding here is a storage-format concession,
+ * not a second aggregation — `groupSatisfaction` scoring still reads the 3
+ * travelers' own unrounded vectors directly via `listPreferenceVectors`.
+ */
+function groupProfile(travelers: readonly DemoTraveler[]): ExperienceProfile {
+  const mean = buildExperienceProfile(travelers.map((t) => t.preferences))!;
+  return Object.fromEntries(
+    Object.entries(mean).map(([key, value]) => [key, Math.round(value)]),
+  ) as ExperienceProfile;
 }
 
 // Re-exported for backward compatibility with existing demo call sites —
@@ -174,9 +208,37 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     situationLine: "현재 주변 교통이 혼잡해 이동에 시간이 더 걸리고 있어요.",
     impactLine: "지금 속도라면 다음 일정까지 이동 부담이 커질 수 있어요.",
     situationKind: "traffic",
-    tripPreference: neutralProfile({ culture: 10, photo: 8, relax: 6 }),
+    travelers: [
+      {
+        name: "민준",
+        role: "HOST",
+        preferences: { nature: 9, culture: 9, food: 7, cafe: 5, shopping: 4, activity: 3, photo: 7, relax: 5 },
+        pace: "slow",
+        indoorOutdoor: "balanced",
+        blurb: "문화·역사와 골목 산책을 좋아해요.",
+      },
+      {
+        name: "서연",
+        role: "MEMBER",
+        preferences: { nature: 7, culture: 6, food: 10, cafe: 9, shopping: 5, activity: 3, photo: 8, relax: 6 },
+        pace: "normal",
+        indoorOutdoor: "indoor",
+        blurb: "맛있는 음식과 예쁜 카페를 즐기는 게 중요해요.",
+      },
+      {
+        name: "도윤",
+        role: "MEMBER",
+        preferences: { nature: 8, culture: 8, food: 5, cafe: 6, shopping: 4, activity: 4, photo: 10, relax: 5 },
+        pace: "slow",
+        indoorOutdoor: "outdoor",
+        blurb: "사진으로 남길 수 있는 분위기와 오래된 장소를 좋아해요.",
+      },
+    ],
+    get tripPreference() {
+      return groupProfile(this.travelers);
+    },
     triggerDayIndex: 0,
-    demoClockLabel: "15:45",
+    demoClockLabel: "13:00",
     days: [
       [
         {
@@ -276,9 +338,35 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     situationLine: "갑작스러운 소나기가 내리고 있어요.",
     impactLine: "지금 계획대로 진행하면 원래 기대했던 야외 경험과 달라질 수 있어요.",
     situationKind: "weather",
-    // nature/photo/relax all raised together — see the verification note
-    // above on why raising `nature` alone leaves too thin a real margin.
-    tripPreference: neutralProfile({ nature: 10, photo: 9, relax: 8 }),
+    travelers: [
+      {
+        name: "준호",
+        role: "HOST",
+        preferences: { nature: 10, culture: 4, food: 6, cafe: 5, shopping: 4, activity: 5, photo: 8, relax: 9 },
+        pace: "slow",
+        indoorOutdoor: "outdoor",
+        blurb: "바다와 여유로운 시간을 가장 중요하게 생각해요.",
+      },
+      {
+        name: "지우",
+        role: "MEMBER",
+        preferences: { nature: 8, culture: 5, food: 6, cafe: 8, shopping: 4, activity: 4, photo: 10, relax: 6 },
+        pace: "normal",
+        indoorOutdoor: "outdoor",
+        blurb: "예쁜 풍경을 사진으로 남기는 게 여행의 목적이에요.",
+      },
+      {
+        name: "현우",
+        role: "MEMBER",
+        preferences: { nature: 7, culture: 5, food: 10, cafe: 4, shopping: 4, activity: 9, photo: 5, relax: 4 },
+        pace: "fast",
+        indoorOutdoor: "balanced",
+        blurb: "먹을 것과 놀 거리가 많은 걸 좋아해요.",
+      },
+    ],
+    get tripPreference() {
+      return groupProfile(this.travelers);
+    },
     triggerDayIndex: 1,
     demoClockLabel: "12:50",
     days: [
@@ -348,11 +436,37 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     situationLine: "연예인 축제로 주변에 많은 인파가 몰리고 있어요.",
     impactLine: "지금 인파라면 남은 일정을 편하게 이어가기 어려울 수 있어요.",
     situationKind: "crowd",
-    // nature/photo/relax all raised together — see the verification note
-    // above on why raising `nature` alone leaves too thin a real margin.
-    tripPreference: neutralProfile({ nature: 10, photo: 9, relax: 8 }),
+    travelers: [
+      {
+        name: "현준",
+        role: "HOST",
+        preferences: { nature: 8, culture: 10, food: 5, cafe: 6, shopping: 4, activity: 4, photo: 7, relax: 4 },
+        pace: "normal",
+        indoorOutdoor: "indoor",
+        blurb: "대전에서만 할 수 있는 전시와 새로운 공간을 좋아해요.",
+      },
+      {
+        name: "유나",
+        role: "MEMBER",
+        preferences: { nature: 8, culture: 6, food: 6, cafe: 10, shopping: 4, activity: 3, photo: 9, relax: 7 },
+        pace: "slow",
+        indoorOutdoor: "indoor",
+        blurb: "분위기 좋은 공간에서 쉬며 사진 찍는 걸 좋아해요.",
+      },
+      {
+        name: "태현",
+        role: "MEMBER",
+        preferences: { nature: 8, culture: 7, food: 10, cafe: 5, shopping: 4, activity: 6, photo: 5, relax: 5 },
+        pace: "normal",
+        indoorOutdoor: "balanced",
+        blurb: "먹는 재미와 새로운 곳을 탐방하는 걸 함께 즐겨요.",
+      },
+    ],
+    get tripPreference() {
+      return groupProfile(this.travelers);
+    },
     triggerDayIndex: 1,
-    demoClockLabel: "17:45",
+    demoClockLabel: "11:00",
     days: [
       [
         {
@@ -432,14 +546,20 @@ export function triggerOrder(scenario: DemoScenario): number {
 }
 
 /**
- * (STEP 17) The item "current" the moment a demo trip is created — the one
- * immediately before the trigger. Everything before it starts pre-completed
- * (see `demoService.ts`), so a judge lands a few steps into the day, right
- * before the interesting part, instead of walking through an already-done
- * lunch/sightseeing stop first.
+ * (STEP 17, revised STEP 22 §3/§13-15) The item "current" the moment a demo
+ * trip is created — the FIRST item of the trigger's own day. Every earlier
+ * day is pre-completed (see `demoService.ts`), so a judge skips days that
+ * already happened, but still has to walk the trigger day's own normal
+ * stops ("여기까지 완료했어요" -> "다음 일정" a few times) before the variable
+ * shows up — never landing on Re:Plan the instant the trip opens. When the
+ * trigger is the trigger day's own first item (a short day), this is
+ * unchanged from the STEP 17 "one step before" behavior.
  */
 export function startingCurrentOrder(scenario: DemoScenario): number {
-  return triggerOrder(scenario) - 1;
+  const itemsBeforeTriggerDay = scenario.days
+    .slice(0, scenario.triggerDayIndex)
+    .reduce((n, day) => n + day.length, 0);
+  return itemsBeforeTriggerDay + 1;
 }
 
 /**
