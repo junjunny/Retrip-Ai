@@ -44,8 +44,6 @@ export function ItineraryPlaces({
   previewMarker,
   currentOrder,
   affectedOrder,
-  demoDisplayTimes,
-  dayTabLabel,
 }: {
   trip: Trip;
   /** a Re:Plan candidate's real route geometry to overlay on the map (STEP 13 §11) — see ReplanPanel's `onPolylinePreview`. */
@@ -62,15 +60,6 @@ export function ItineraryPlaces({
    * the time (a normal moment never singles out a row).
    */
   affectedOrder?: number | null;
-  /** order -> a demo scenario's own scripted clock reading (STEP 17) — shown instead of the item's real stored `time`, which for a DEMO trip is internal Re:Plan-eligibility plumbing, not a real schedule (see demoScenarios.ts's `buildDemoItinerary`). Omitted for every ordinary trip, which always shows its real `item.time`. */
-  demoDisplayTimes?: Record<number, string>;
-  /**
-   * (STEP 22 §2/§43) overrides a day tab's label (e.g. "10월 1일 · DAY 1")
-   * with a demo's fixed narrative date instead of the real anchored
-   * calendar date — same decoupling `demoDisplayTimes` already does for the
-   * clock. Omitted for every ordinary trip, which always shows its real date.
-   */
-  dayTabLabel?: (date: string, dayIndex: number) => string;
 }) {
   const [items, setItems] = useState<ItineraryItem[]>(trip.itinerary ?? []);
   const [activeOrder, setActiveOrder] = useState<number | null>(null);
@@ -150,7 +139,7 @@ export function ItineraryPlaces({
                 d === activeDay ? "border-brand bg-brand text-brand-ink" : "border-line text-ink-muted"
               }`}
             >
-              {dayTabLabel ? dayTabLabel(d, i) : `Day ${i + 1} · ${fmtDate(d).slice(5)} (${dayLabel(d)})`}
+              {`Day ${i + 1} · ${fmtDate(d).slice(5)} (${dayLabel(d)})`}
             </button>
           ))}
         </div>
@@ -173,7 +162,7 @@ export function ItineraryPlaces({
           const isDone = item.status === "completed";
           const isCurrent = item.order === currentOrder;
           const isAffected = item.order === affectedOrder;
-          const displayTime = demoDisplayTimes?.[item.order] || item.time;
+          const displayTime = item.time;
           return (
             <li key={item.order} className={`relative flex gap-3 pb-4 ${isDone ? "opacity-50" : ""}`}>
               {/* completed/current/upcoming badge + connecting line (visual flow only — no fabricated time) */}

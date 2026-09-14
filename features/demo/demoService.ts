@@ -2,43 +2,39 @@
  * features/demo/demoService — turns a `DemoScenario` into a REAL trip.
  *
  * 1. `createTrip` (the ordinary client trip service — same function
- *    `/trip/create` uses) with the scenario's schedule anchored to "now"
- *    and its `tripPreference` (a real, plausible group preference, not a
- *    scoring shortcut — see demoScenarios.ts).
+ *    `/trip/create` uses) with the scenario's LITERAL, fixed schedule (STEP
+ *    23 §2/§23 — no real-clock anchoring of any kind: every item's date/time
+ *    is exactly what demoScenarios.ts scripted) and its `tripPreference` (a
+ *    real, plausible group preference, not a scoring shortcut — see
+ *    demoScenarios.ts).
  * 2. Resolves + confirms each item's real place through the exact SAME
  *    `/resolve` + itinerary `PATCH` endpoints `PlaceConfirmSheet` uses for a
  *    human clicking "이 장소로 선택" — sequential, one place at a time, so
  *    the demo respects the per-trip resolve rate limit exactly like a real
  *    session would (see app/api/trip/[tripId]/resolve/route.ts). This is
- *    automatically picking the top real search hit, the same outcome a
- *    human would get by picking the first suggested candidate — an
- *    unresolved place (e.g. a generic placeholder name with no real match)
- *    is left honestly unconfirmed, same as the real flow. A few items
- *    (e.g. "전주 숙소") carry a real `resolveAddress` instead and resolve by
- *    address (`/resolve?addr=`) rather than by name.
- * 3. (STEP 22 §4) Never pre-completes anything. A demo trip always opens
- *    with item 1 as "current" — the exact same generic journey UI a brand
- *    new ordinary trip already shows for its own first item (see
- *    `DEMO_STARTING_ORDER`'s doc comment). Earlier steps (through STEP 17-21)
- *    pre-completed every item up to the trigger so a judge landed "a few
- *    steps into the day" — that shortcut is exactly what made a demo trip
- *    look like it started mid-itinerary (e.g. 부산 opening on "수변최고돼지
- *    국밥"), so STEP 22 removes it: the traveler now walks every real
- *    "완료 -> 다음" step themselves, from the very first stop.
- *
- * 4. (STEP 22) Seeds the scenario's 3 real travelers through the exact SAME
+ *    ONLY ever used to attach real coordinates/address/image to the
+ *    scenario's own fixed place NAME — a failed/ambiguous resolution never
+ *    changes what place the itinerary shows (STEP 23 §15): an unresolved
+ *    place is left honestly unconfirmed, same as the real flow. A few items
+ *    carry a real `resolveAddress` instead and resolve by address
+ *    (`/resolve?addr=`) rather than by name, when a keyword search can't
+ *    reliably pin the right branch/spot.
+ * 3. Never pre-completes anything. A demo trip always opens with item 1 as
+ *    "current" — the exact same generic journey UI a brand new ordinary
+ *    trip already shows for its own first item.
+ * 4. Seeds the scenario's 3 real travelers through the exact SAME
  *    `/api/trip/{tripId}/submit` endpoint a human joining via the invite
  *    link uses — so `groupSatisfaction` scoring (features/scoring/scoring.ts)
  *    reads their real, genuinely different preference vectors via
- *    `listPreferenceVectors`, not a single hand-picked aggregate. Runs
- *    concurrently with place resolution (independent of it) so it adds no
- *    wall-clock time in the common case.
+ *    `listPreferenceVectors` for a general trip. A demo trip's own Re:Plan
+ *    never runs that scoring at all — see features/demo/demoReplanService.ts.
+ *    Runs concurrently with place resolution (independent of it) so it adds
+ *    no wall-clock time in the common case.
  *
  * Client-side only (uses the browser Firestore SDK + `fetch`), same trust
  * boundary as trip creation and place confirmation already have.
  */
 import { createTrip, getTrip } from "@/features/trip";
-import { nowKst } from "@/lib/kst";
 
 import { buildDemoItinerary, type DemoScenario, type DemoTraveler } from "./demoScenarios";
 
@@ -56,7 +52,7 @@ export async function startDemo(
   scenario: DemoScenario,
   onProgress?: (p: DemoStartProgress) => void,
 ): Promise<string> {
-  const built = buildDemoItinerary(scenario, nowKst());
+  const built = buildDemoItinerary(scenario);
   const dates = [...new Set(built.map((i) => i.date))].sort();
 
   const tripId = await createTrip({
@@ -152,7 +148,11 @@ async function resolveAndConfirm(
 
     // Same PATCH shape PlaceConfirmSheet sends for "이 장소로 선택" — the
     // endpoint always marks a submitted place confirmed (see its doc
-    // comment), matching a human picking this exact top result.
+    // comment), matching a human picking this exact top result. The NAME is
+    // always the scenario's own fixed `item.placeName` (STEP 23 §15/§28) —
+    // the real API is only ever used for coordinates/address/placeId; a
+    // demo itinerary's canonical display name is never overwritten by
+    // whatever spelling the API happens to return for the same place.
     await fetch(`/api/trip/${tripId}/itinerary`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -160,7 +160,7 @@ async function resolveAndConfirm(
         order,
         place: {
           placeId: place.placeId,
-          placeName: item.resolveAddress ? item.placeName : place.placeName,
+          placeName: item.placeName,
           address: place.roadAddress ?? place.address,
           latitude: place.latitude,
           longitude: place.longitude,

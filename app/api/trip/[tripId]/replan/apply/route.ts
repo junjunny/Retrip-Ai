@@ -11,6 +11,7 @@
  * generated — never applies over a stale base. Returns
  * `{ itinerary, changedCount }`.
  */
+import { applyDemoReplanPreview, DemoReplanStaleError, getTripDemoScenario } from "@/features/demo/demoReplanService";
 import { applyReplanPreview, ReplanStaleError } from "@/features/replan/replanService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { allowRequest } from "@/lib/rateLimit";
@@ -61,19 +62,32 @@ export async function POST(
     return Response.json({ error: "요청 값을 확인해주세요." }, { status: 400 });
   }
 
+  const currentLocation = parseCurrentLocation(body.currentLocation);
+
   try {
+    // STEP 23 — same demo/production split as the preview route.
+    const demoScenario = await getTripDemoScenario(tripId);
+    if (demoScenario) {
+      const result = await applyDemoReplanPreview(tripId, demoScenario, {
+        baseItineraryFingerprint,
+        baseLocationFingerprint,
+        currentLocation,
+      });
+      return Response.json(result);
+    }
+
     const result = await applyReplanPreview(tripId, {
       baseItineraryFingerprint,
       baseLocationFingerprint,
       generatedAt,
-      currentLocation: parseCurrentLocation(body.currentLocation),
+      currentLocation,
     });
     return Response.json(result);
   } catch (err) {
     if (err instanceof TripNotFoundError) {
       return Response.json({ error: err.message }, { status: 404 });
     }
-    if (err instanceof ReplanStaleError) {
+    if (err instanceof ReplanStaleError || err instanceof DemoReplanStaleError) {
       return Response.json({ error: err.message, stale: true }, { status: 409 });
     }
     console.error("[api/trip/replan/apply]", err instanceof Error ? err.message : "unknown error");

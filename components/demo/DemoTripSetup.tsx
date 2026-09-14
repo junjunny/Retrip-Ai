@@ -3,10 +3,12 @@
 import { ChevronDown, User } from "lucide-react";
 import { useState } from "react";
 
-import { demoDisplayDate, demoDisplayTime, type DemoScenario, type DemoTraveler } from "@/features/demo";
+import type { DemoScenario, DemoTraveler } from "@/features/demo";
 import { topExperienceHighlights } from "@/features/replan";
 import { PREFERENCE_ICON } from "@/components/trip/preferenceIcons";
 import type { Trip } from "@/types";
+
+const fmtDate = (d: string) => d.split("-").join(".");
 
 /**
  * (STEP 22 §3/§4/§7/§9-12) "여행 설정 확인" — shown once, right after a demo
@@ -42,7 +44,7 @@ export function DemoTripSetup({
         <p className="text-sm text-ink-muted">{scenario.conceptTagline}</p>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">{scenario.title}</h1>
         <p className="text-sm tabular-nums text-ink-muted">
-          {demoDisplayDate(0)} — {demoDisplayDate(days.length - 1)} · {scenario.cardDuration}
+          {fmtDate(trip.startDate)} — {fmtDate(trip.endDate)} · {scenario.cardDuration}
         </p>
       </div>
 
@@ -84,7 +86,7 @@ export function DemoTripSetup({
             <div key={date} className="flex flex-col gap-2 rounded-xl border border-line px-3.5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <p className="text-sm font-medium text-ink">
-                  {demoDisplayDate(i)} <span className="text-ink-muted">· DAY {i + 1}</span>
+                  {fmtDate(date)} <span className="text-ink-muted">· DAY {i + 1}</span>
                 </p>
                 {outlook && (
                   <div className="flex items-center gap-3 text-xs text-ink-muted">
@@ -96,9 +98,7 @@ export function DemoTripSetup({
               <ol className="flex flex-col gap-1 text-sm">
                 {items.map((it) => (
                   <li key={it.order} className="flex items-center gap-2">
-                    <span className="tabular-nums text-ink-muted">
-                      {demoDisplayTime(scenario, it.order) ?? it.time}
-                    </span>
+                    <span className="tabular-nums text-ink-muted">{it.time}</span>
                     <span className="text-ink">{it.placeName}</span>
                   </li>
                 ))}

@@ -2,7 +2,7 @@
 
 import { Car, CloudRain, Compass, Users } from "lucide-react";
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import { ItineraryPlaces } from "@/components/trip/ItineraryPlaces";
 import { MiniGuide } from "@/components/trip/MiniGuide";
@@ -10,13 +10,9 @@ import { ReplanPanel } from "@/components/trip/ReplanPanel";
 import type { PreviewMarker } from "@/components/trip/TripMap";
 import { TripParticipants } from "@/components/trip/TripParticipants";
 import {
-  DEMO_STARTING_ORDER,
   demoCompletionMessage,
-  demoDisplayDate,
-  demoDisplayTime,
   getDemoScenario,
   scenarioFlatItems,
-  triggerOrder,
   type DemoScenario,
 } from "@/features/demo";
 import { getTrip } from "@/features/trip";
@@ -136,11 +132,6 @@ function dayNumber(trip: Trip, date: string): number {
   return i >= 0 ? i + 1 : 1;
 }
 
-/** How many distinct calendar days the trip's itinerary spans. */
-function dayCount(trip: Trip): number {
-  return new Set(trip.itinerary.map((it) => it.date)).size;
-}
-
 function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [trip, setTrip] = useState(initialTrip);
   // bump on every Re:Plan apply / journey completion so ItineraryPlaces remounts with the fresh itinerary as its initial state.
@@ -167,15 +158,6 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
     nextOrder?: number;
   } | null>(null);
   const [completing, setCompleting] = useState(false);
-
-  const demoDisplayTimes = useMemo(() => {
-    if (!demoScenario) return undefined;
-    const map: Record<number, string> = {};
-    scenarioFlatItems(demoScenario).forEach((it, i) => {
-      map[i + 1] = it.time;
-    });
-    return map;
-  }, [demoScenario]);
 
   const currentItem = displayedCurrentOrder != null
     ? trip.itinerary.find((it) => it.order === displayedCurrentOrder)
@@ -247,17 +229,23 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- depends on the origin's coordinates, not object identity (a new literal every render).
   }, [demoScenario, trip.tripId, journeyOrigin?.latitude, journeyOrigin?.longitude]);
 
-  const atTrigger = demoScenario ? displayedCurrentOrder === triggerOrder(demoScenario) : true;
-  // 상황 -> 영향 -> 선택 (STEP 19/20 §2/§11): a demo trip's pair is scripted
-  // narrative for a controlled scenario (always the full "notable" tier — a
-  // demo situation exists precisely to be worth noticing); an ordinary
-  // trip's is genuinely computed from real Travel State
-  // (features/travel-state/situationMessage.ts) at whichever intervention
-  // tier it actually earned — never mixed, same separation STEP 16-18
-  // already established.
+  // (STEP 23 §17) a demo trip's disruption lives on the SCENARIO ITEM the
+  // traveler is currently on, not on the scenario as a whole — two of a
+  // scenario's items each carry their own scripted situation
+  // (demoScenarios.ts's `disruption`). Whichever item is current right now
+  // is the only one that can ever surface a situation; everything else
+  // stays quiet, exactly matching what Re:Plan itself will (and will only)
+  // act on — see features/demo/demoReplanService.ts. An ordinary trip's
+  // situation is genuinely computed from real Travel State
+  // (features/travel-state/situationMessage.ts) — never mixed with a
+  // scripted one.
+  const currentDisruption =
+    demoScenario && displayedCurrentOrder != null
+      ? scenarioFlatItems(demoScenario)[displayedCurrentOrder - 1]?.disruption
+      : undefined;
   const situation: SituationMessage | null = demoScenario
-    ? atTrigger
-      ? { tier: "notable", kind: demoScenario.situationKind, line: demoScenario.situationLine, impact: demoScenario.impactLine }
+    ? currentDisruption
+      ? { tier: "notable", kind: currentDisruption.situationKind, line: currentDisruption.situationLine, impact: currentDisruption.impactLine }
       : null
     : realSituation;
 
@@ -341,15 +329,7 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
         <p className="text-sm text-ink-muted">{trip.title}</p>
         <h1 className="text-3xl font-semibold tracking-tight text-ink">{trip.destination}</h1>
         <p className="text-sm tabular-nums text-ink-muted">
-          {demoScenario ? (
-            <>
-              {demoDisplayDate(0)} — {demoDisplayDate(dayCount(trip) - 1)}
-            </>
-          ) : (
-            <>
-              {fmtDate(trip.startDate)} — {fmtDate(trip.endDate)}
-            </>
-          )}
+          {fmtDate(trip.startDate)} — {fmtDate(trip.endDate)}
         </p>
       </header>
 
@@ -426,8 +406,6 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
           previewMarker={previewMarker}
           currentOrder={displayedCurrentOrder}
           affectedOrder={isVariable ? displayedCurrentOrder : null}
-          demoDisplayTimes={demoDisplayTimes}
-          dayTabLabel={demoScenario ? (_date, i) => `${demoDisplayDate(i)} · DAY ${i + 1}` : undefined}
         />
       </section>
 
@@ -528,18 +506,12 @@ function JourneyCard({
     );
   }
 
-  const displayTime = (order: number, item: ItineraryItem) =>
-    (demoScenario &&
-      (order === DEMO_STARTING_ORDER ? demoScenario.demoClockLabel : demoDisplayTime(demoScenario, order))) ||
-    item.time;
-
   const driving = segmentMobility?.find((m) => m.mode === "DRIVING");
-  const dayIndex = dayNumber(trip, currentItem.date) - 1;
 
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-line px-4 py-3.5">
       <p className="text-xs font-medium text-ink-muted">
-        {trip.destination} · {demoScenario ? `${demoDisplayDate(dayIndex)} · ` : ""}DAY {dayIndex + 1}
+        {trip.destination} · DAY {dayNumber(trip, currentItem.date)}
         <span className="ms-2 tabular-nums">· {completedCount} / {total} 일정 완료</span>
       </p>
 
@@ -574,7 +546,7 @@ function JourneyCard({
           <div className="flex flex-col gap-1">
             <p className="text-xs font-medium text-ink-muted">지금 여행 중</p>
             <p className="text-lg font-semibold text-ink">{currentItem.placeName}</p>
-            <p className="tabular-nums text-xs text-ink-muted">{displayTime(currentOrder, currentItem)}</p>
+            <p className="tabular-nums text-xs text-ink-muted">{currentItem.time}</p>
           </div>
 
           {nextItem && (
@@ -595,7 +567,7 @@ function JourneyCard({
               <div className="flex flex-col gap-1 border-t border-line pt-2">
                 <p className="text-xs font-medium text-ink-muted">다음 일정</p>
                 <p className="text-base font-medium text-ink">{nextItem.placeName}</p>
-                <p className="tabular-nums text-xs text-ink-muted">{displayTime(nextItem.order, nextItem)}</p>
+                <p className="tabular-nums text-xs text-ink-muted">{nextItem.time}</p>
               </div>
             </>
           )}

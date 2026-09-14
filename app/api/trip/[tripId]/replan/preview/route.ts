@@ -17,6 +17,7 @@
  * client; score numbers (situationFitness etc.) are deliberately NOT
  * forwarded over the wire at all (the UI never shows them — AGENTS-spec §26).
  */
+import { buildDemoReplanPreview, getTripDemoScenario } from "@/features/demo/demoReplanService";
 import { toPublicReplanPreview } from "@/features/replan";
 import { generateReplanPreviewWithExplanation } from "@/features/replan/replanService";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
@@ -60,6 +61,19 @@ export async function POST(
   const currentLocation = parseCurrentLocation(body.currentLocation);
 
   try {
+    // STEP 23 — a demo trip is a fixed, replayable scenario: its Re:Plan
+    // never runs real candidate generation/scoring at all (see
+    // features/demo/demoReplanService.ts's module doc for exactly why).
+    // Every other trip falls through to the unmodified production path below.
+    const demoScenario = await getTripDemoScenario(tripId);
+    if (demoScenario) {
+      const { preview, explanation, disruption } = await buildDemoReplanPreview(tripId, demoScenario, { currentLocation });
+      const situation = disruption
+        ? { tier: "notable" as const, kind: disruption.situationKind, line: disruption.situationLine, impact: disruption.impactLine }
+        : null;
+      return Response.json({ preview, explanation, events: [], situation });
+    }
+
     const { preview, explanation, facts } = await generateReplanPreviewWithExplanation(tripId, { currentLocation });
     const events = facts.slots
       .filter((s) => s.eventOngoing)

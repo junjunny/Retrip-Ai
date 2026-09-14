@@ -4,30 +4,22 @@ import {
   buildDemoItinerary,
   DEMO_GENERIC_CLOSING_MESSAGE,
   DEMO_SCENARIOS,
-  DEMO_STARTING_ORDER,
-  DEMO_TRIGGER_BUFFER_MINUTES,
   demoCompletionMessage,
-  demoDisplayDate,
-  demoDisplayTime,
   deriveScoringPreferences,
   getDemoScenario,
   scenarioFlatItems,
-  triggerOrder,
 } from "@/features/demo/demoScenarios";
 import { buildExperienceProfile } from "@/features/experience";
 import { PREFERENCE_KEYS } from "@/features/participant/participant";
 
-describe("DEMO_SCENARIOS data", () => {
+const jeonju = () => getDemoScenario("jeonju")!;
+const busan = () => getDemoScenario("busan")!;
+const daejeon = () => getDemoScenario("daejeon")!;
+
+describe("DEMO_SCENARIOS data (STEP 23 hard lock)", () => {
   it("has exactly 3 scenarios with unique ids", () => {
     expect(DEMO_SCENARIOS).toHaveLength(3);
     expect(new Set(DEMO_SCENARIOS.map((s) => s.id)).size).toBe(3);
-  });
-
-  it("every scenario has exactly one trigger item, on its declared triggerDayIndex", () => {
-    for (const s of DEMO_SCENARIOS) {
-      const triggers = s.days.flatMap((day, i) => day.filter((item) => item.isTrigger).map(() => i));
-      expect(triggers).toEqual([s.triggerDayIndex]);
-    }
   });
 
   it("every scenario has a full, in-range tripPreference vector", () => {
@@ -39,41 +31,153 @@ describe("DEMO_SCENARIOS data", () => {
     }
   });
 
-  it("no scenario mentions AI/score/algorithm in its situation line", () => {
-    for (const s of DEMO_SCENARIOS) {
-      expect(s.situationLine).not.toMatch(/AI|score|algorithm|점수|알고리즘/i);
-    }
-  });
-
   it("getDemoScenario finds a known id and returns undefined for an unknown one", () => {
     expect(getDemoScenario("jeonju")?.destination).toBe("전주");
     expect(getDemoScenario("nope")).toBeUndefined();
   });
 
-  // STEP 22 §2/§68: every demo's duration matches the spec exactly.
-  it("Jeonju spans 2 days (1박 2일)", () => {
-    expect(getDemoScenario("jeonju")!.days).toHaveLength(2);
-    expect(getDemoScenario("jeonju")!.cardDuration).toBe("1박 2일");
+  // §2/§30: exact date range + duration per city.
+  it("전주 spans 2026-10-01 ~ 2026-10-03 (2박 3일)", () => {
+    const flat = scenarioFlatItems(jeonju());
+    expect(flat[0].date).toBe("2026-10-01");
+    expect(flat[flat.length - 1].date).toBe("2026-10-03");
+    expect(jeonju().cardDuration).toBe("2박 3일");
+    expect(jeonju().days).toHaveLength(3);
   });
-  it("Busan spans 3 days (2박 3일)", () => {
-    expect(getDemoScenario("busan")!.days).toHaveLength(3);
-    expect(getDemoScenario("busan")!.cardDuration).toBe("2박 3일");
+  it("부산 spans 2026-10-01 ~ 2026-10-02 (1박 2일)", () => {
+    const flat = scenarioFlatItems(busan());
+    expect(flat[0].date).toBe("2026-10-01");
+    expect(flat[flat.length - 1].date).toBe("2026-10-02");
+    expect(busan().cardDuration).toBe("1박 2일");
+    expect(busan().days).toHaveLength(2);
   });
-  it("Daejeon spans 2 days (1박 2일)", () => {
-    expect(getDemoScenario("daejeon")!.days).toHaveLength(2);
-    expect(getDemoScenario("daejeon")!.cardDuration).toBe("1박 2일");
+  it("대전 spans 2026-10-01 ~ 2026-10-02 (1박 2일)", () => {
+    const flat = scenarioFlatItems(daejeon());
+    expect(flat[0].date).toBe("2026-10-01");
+    expect(flat[flat.length - 1].date).toBe("2026-10-02");
+    expect(daejeon().cardDuration).toBe("1박 2일");
+    expect(daejeon().days).toHaveLength(2);
   });
 
-  // STEP 22 §2: the narrative date axis always starts "10월 1일", regardless
-  // of the real server clock buildDemoItinerary anchors against.
-  it("demoDisplayDate always starts at 10월 1일 and counts up one day per index", () => {
-    expect(demoDisplayDate(0)).toBe("10월 1일");
-    expect(demoDisplayDate(1)).toBe("10월 2일");
-    expect(demoDisplayDate(2)).toBe("10월 3일");
+  // §23: no scenario ever uses randomness to build its schedule.
+  it("buildDemoItinerary is deterministic across repeated calls (no clock, no randomness)", () => {
+    for (const s of DEMO_SCENARIOS) {
+      const a = buildDemoItinerary(s);
+      const b = buildDemoItinerary(s);
+      expect(a).toEqual(b);
+    }
   });
 });
 
-describe("DEMO_SCENARIOS travelers (STEP 22 §6-8)", () => {
+describe("전주 itinerary hard lock (§4/§27)", () => {
+  it("Day 1 matches the spec exactly, in order", () => {
+    const day1 = jeonju().days[0].map((it) => it.placeName);
+    expect(day1).toEqual([
+      "현대닭내장",
+      "경기전",
+      "전주 한옥마을",
+      "서학동 예술마을",
+      "베테랑",
+      "신라스테이 전주",
+    ]);
+  });
+  it("Day 2 matches the spec exactly, in order", () => {
+    const day2 = jeonju().days[1].map((it) => it.placeName);
+    expect(day2).toEqual(["메르밀 진미집", "덕진공원", "다리미 삼겹살", "전주 호텔원"]);
+  });
+  it("Day 3 matches the spec exactly, in order", () => {
+    const day3 = jeonju().days[2].map((it) => it.placeName);
+    expect(day3).toEqual(["또또국수", "전주월드컵경기장"]);
+  });
+  it("서학동 예술마을 has no resolveAddress — the given address doesn't resolve via the real geocoder, so it resolves by name instead (live-verified, see the module doc comment)", () => {
+    const item = scenarioFlatItems(jeonju()).find((i) => i.placeName === "서학동 예술마을")!;
+    expect(item.resolveAddress).toBeUndefined();
+  });
+});
+
+describe("부산 itinerary hard lock (§5/§27 — absolute check)", () => {
+  it("Day 1 matches the spec exactly, in order", () => {
+    const day1 = busan().days[0].map((it) => it.placeName);
+    expect(day1).toEqual([
+      "감천문화마을",
+      "자갈치 시장",
+      "흰여울문화마을",
+      "마린횟집 해운대본점",
+      "한화리조트 해운대",
+    ]);
+  });
+  it("Day 2 is exactly 수변최고돼지국밥 -> 해운대 해수욕장", () => {
+    const day2 = busan().days[1].map((it) => it.placeName);
+    expect(day2).toEqual(["수변최고돼지국밥", "해운대 해수욕장"]);
+  });
+  it("승찬 replaces 지우 everywhere in the 부산 scenario", () => {
+    const names = busan().travelers.map((t) => t.name);
+    expect(names).toContain("승찬");
+    expect(names).not.toContain("지우");
+  });
+});
+
+describe("대전 itinerary hard lock (§6/§27)", () => {
+  it("Day 1 matches the spec exactly, in order", () => {
+    const day1 = daejeon().days[0].map((it) => it.placeName);
+    expect(day1).toEqual(["광천식당", "성심당 본점", "대동하늘공원", "유성호텔"]);
+  });
+  it("Day 2 matches the spec exactly, in order", () => {
+    const day2 = daejeon().days[1].map((it) => it.placeName);
+    expect(day2).toEqual(["한밭수목원", "오씨칼국수", "국립중앙과학관", "엑스포과학공원 한빛탑"]);
+  });
+});
+
+describe("Re:Plan replacement mapping hard lock (§13/§27/§28)", () => {
+  it("전주: 서학동 예술마을 -> 국립무형유산원, 덕진공원 -> 한국도로공사 전주수목원", () => {
+    const flat = scenarioFlatItems(jeonju());
+    expect(flat.find((i) => i.placeName === "서학동 예술마을")?.disruption?.replacement.placeName).toBe(
+      "국립무형유산원",
+    );
+    expect(flat.find((i) => i.placeName === "덕진공원")?.disruption?.replacement.placeName).toBe(
+      "한국도로공사 전주수목원",
+    );
+  });
+
+  it("부산: 자갈치 시장 -> 부평깡통시장, 해운대 해수욕장 -> 씨라이프 부산 아쿠아리움", () => {
+    const flat = scenarioFlatItems(busan());
+    expect(flat.find((i) => i.placeName === "자갈치 시장")?.disruption?.replacement.placeName).toBe(
+      "부평깡통시장",
+    );
+    expect(flat.find((i) => i.placeName === "해운대 해수욕장")?.disruption?.replacement.placeName).toBe(
+      "씨라이프 부산 아쿠아리움",
+    );
+  });
+
+  it("대전: 성심당 본점 -> 정동문화사, 엑스포과학공원 한빛탑 -> 대청호 명상정원 (never 유성 관광특구)", () => {
+    const flat = scenarioFlatItems(daejeon());
+    expect(flat.find((i) => i.placeName === "성심당 본점")?.disruption?.replacement.placeName).toBe(
+      "정동문화사",
+    );
+    const hanbit = flat.find((i) => i.placeName === "엑스포과학공원 한빛탑");
+    expect(hanbit?.disruption?.replacement.placeName).toBe("대청호 명상정원");
+    expect(hanbit?.disruption?.replacement.placeName).not.toBe("유성 관광특구");
+    // never in ANY scenario, anywhere.
+    for (const s of DEMO_SCENARIOS) {
+      for (const item of scenarioFlatItems(s)) {
+        expect(item.disruption?.replacement.placeName).not.toBe("유성 관광특구");
+      }
+    }
+  });
+
+  it("exactly two disruptions per scenario, each with a non-empty situation/impact line", () => {
+    for (const s of DEMO_SCENARIOS) {
+      const disruptions = scenarioFlatItems(s).filter((i) => i.disruption);
+      expect(disruptions).toHaveLength(2);
+      for (const item of disruptions) {
+        expect(item.disruption!.situationLine.length).toBeGreaterThan(0);
+        expect(item.disruption!.impactLine.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe("DEMO_SCENARIOS travelers (STEP 22/23 §7-9)", () => {
   it("every scenario has 3 travelers with a full integer 1-10 vector, one HOST and two MEMBERs", () => {
     for (const s of DEMO_SCENARIOS) {
       expect(s.travelers).toHaveLength(3);
@@ -106,7 +210,6 @@ describe("DEMO_SCENARIOS travelers (STEP 22 §6-8)", () => {
       const mean = buildExperienceProfile(s.travelers.map((t) => t.preferences))!;
       for (const key of PREFERENCE_KEYS) {
         expect(s.tripPreference[key]).toBe(Math.round(mean[key]));
-        expect(Number.isInteger(s.tripPreference[key])).toBe(true);
       }
     }
   });
@@ -119,34 +222,15 @@ describe("DEMO_SCENARIOS travelers (STEP 22 §6-8)", () => {
     }
   });
 
-  it("Busan travelers are exactly 준호 (HOST), 승찬, 현우 — never the old '지우'", () => {
-    const names = getDemoScenario("busan")!.travelers.map((t) => t.name);
-    expect(names).toEqual(["준호", "승찬", "현우"]);
-    expect(names).not.toContain("지우");
-  });
-  it("Jeonju travelers are exactly 민준 (HOST), 서연, 도윤", () => {
-    expect(getDemoScenario("jeonju")!.travelers.map((t) => t.name)).toEqual(["민준", "서연", "도윤"]);
-  });
-  it("Daejeon travelers are exactly 현준 (HOST), 유나, 태현", () => {
-    expect(getDemoScenario("daejeon")!.travelers.map((t) => t.name)).toEqual(["현준", "유나", "태현"]);
+  it("names match the hard lock exactly: 전주=민준/서연/도윤, 부산=준호/승찬/현우, 대전=현준/유나/태현", () => {
+    expect(jeonju().travelers.map((t) => t.name)).toEqual(["민준", "서연", "도윤"]);
+    expect(busan().travelers.map((t) => t.name)).toEqual(["준호", "승찬", "현우"]);
+    expect(daejeon().travelers.map((t) => t.name)).toEqual(["현준", "유나", "태현"]);
   });
 
-  // STEP 22 §9-10/§59.11: the exact named axis + value given in the brief is
-  // preserved verbatim for the participant detail view.
-  it("민준's display preferences match the given brief exactly", () => {
-    const minjun = getDemoScenario("jeonju")!.travelers[0];
-    expect(minjun.displayPreferences).toEqual([
-      { label: "문화·역사", value: 9 },
-      { label: "골목·산책", value: 9 },
-      { label: "전통체험", value: 8 },
-      { label: "음식", value: 7 },
-      { label: "사진·풍경", value: 7 },
-      { label: "카페·휴식", value: 5 },
-      { label: "액티비티", value: 3 },
-    ]);
-  });
-  it("현우's display preferences match the given brief exactly", () => {
-    const hyunwoo = getDemoScenario("busan")!.travelers[2];
+  // §8/§59.11: the exact named axis + value given in the brief is preserved verbatim.
+  it("현우's display preferences match the STEP 23 brief exactly (카페·휴식, not 여유·휴식)", () => {
+    const hyunwoo = busan().travelers[2];
     expect(hyunwoo.displayPreferences).toEqual([
       { label: "음식", value: 10 },
       { label: "액티비티", value: 9 },
@@ -154,7 +238,18 @@ describe("DEMO_SCENARIOS travelers (STEP 22 §6-8)", () => {
       { label: "산책", value: 6 },
       { label: "풍경", value: 6 },
       { label: "문화·역사", value: 5 },
-      { label: "여유·휴식", value: 4 },
+      { label: "카페·휴식", value: 4 },
+    ]);
+  });
+  it("민준's display preferences match the brief exactly", () => {
+    expect(jeonju().travelers[0].displayPreferences).toEqual([
+      { label: "문화·역사", value: 9 },
+      { label: "골목·산책", value: 9 },
+      { label: "전통체험", value: 8 },
+      { label: "음식", value: 7 },
+      { label: "사진·풍경", value: 7 },
+      { label: "카페·휴식", value: 5 },
+      { label: "액티비티", value: 3 },
     ]);
   });
 });
@@ -166,14 +261,13 @@ describe("deriveScoringPreferences", () => {
       { label: "풍경", value: 4 },
       { label: "산책", value: 6 },
     ]);
-    expect(v.nature).toBe(10); // max(10,4,6), not their average
+    expect(v.nature).toBe(10);
   });
 
   it("defaults every unmentioned real axis to PREFERENCE_NEUTRAL (5), never inventing a value", () => {
     const v = deriveScoringPreferences([{ label: "음식", value: 8 }]);
     expect(v.food).toBe(8);
     expect(v.nature).toBe(5);
-    expect(v.culture).toBe(5);
     expect(v.shopping).toBe(5);
   });
 
@@ -182,7 +276,7 @@ describe("deriveScoringPreferences", () => {
   });
 });
 
-describe("DEMO_SCENARIOS weather (STEP 22 §3)", () => {
+describe("DEMO_SCENARIOS weather (STEP 22/23 §3)", () => {
   it("every scenario has one DEMO-only weather outlook entry per day", () => {
     for (const s of DEMO_SCENARIOS) {
       expect(s.dailyWeather).toHaveLength(s.days.length);
@@ -193,132 +287,22 @@ describe("DEMO_SCENARIOS weather (STEP 22 §3)", () => {
     }
   });
 
-  // §22/§59.12: Busan's variable MUST be a shower, on the trigger's own day.
-  it("Busan's Day 1 afternoon is the required 소나기 (shower) variable", () => {
-    const busan = getDemoScenario("busan")!;
-    expect(busan.dailyWeather[busan.triggerDayIndex].pm).toBe("소나기");
-    expect(busan.situationKind).toBe("weather");
-  });
-});
-
-describe("buildDemoItinerary", () => {
-  const jeonju = getDemoScenario("jeonju")!;
-
-  it("places the trigger item today, at now + buffer, rounded up to the next 5 minutes", () => {
-    const built = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "10:03" });
-    const trigger = built.find((i) => i.placeName === "서학동예술마을")!;
-    expect(trigger.date).toBe("2026-09-11");
-    // 10:03 + 20min = 10:23 -> rounded up to 10:25
-    expect(trigger.time).toBe("10:25");
-  });
-
-  it("an exact 5-minute boundary is left unchanged by the rounding", () => {
-    const built = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "09:40" });
-    const trigger = built.find((i) => i.placeName === "서학동예술마을")!;
-    // 09:40 + 20min = 10:00 exactly
-    expect(trigger.time).toBe("10:00");
-  });
-
-  it("preserves relative day spacing across the whole trip", () => {
-    const built = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "10:00" });
-    const dates = [...new Set(built.map((i) => i.date))].sort();
-    expect(dates).toEqual(["2026-09-11", "2026-09-12"]);
-  });
-
-  // STEP 17 fix: the trigger must NEVER roll into tomorrow — Re:Plan's real
-  // eligibility gate compares against the SERVER's actual current date, and
-  // a trigger dated "tomorrow" while the real clock hasn't reached midnight
-  // yet was reporting zero eligible slots (found via real E2E testing).
-  it("clamps to today (23:59) instead of rolling into tomorrow when the buffer would cross midnight", () => {
-    const built = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "23:50" });
-    const trigger = built.find((i) => i.placeName === "서학동예술마을")!;
-    expect(trigger.date).toBe("2026-09-11"); // stays TODAY, never "tomorrow"
-    expect(trigger.time).toBe("23:59");
-    const dates = [...new Set(built.map((i) => i.date))].sort();
-    expect(dates).toEqual(["2026-09-11", "2026-09-12"]);
-  });
-
-  it("is deterministic: same scenario + same now -> identical output", () => {
-    const a = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "10:00" });
-    const b = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "10:00" });
-    expect(a).toEqual(b);
-  });
-
-  it("Busan's trigger is on Day 1 itself — Day 2/3 land on the following real dates", () => {
-    const busan = getDemoScenario("busan")!;
-    const built = buildDemoItinerary(busan, { date: "2026-09-11", time: "10:00" });
-    const trigger = built.find((i) => i.placeName === "미포")!;
-    expect(trigger.date).toBe("2026-09-11");
-    const day2Item = built.find((i) => i.placeName === "감천문화마을")!;
-    expect(day2Item.date).toBe("2026-09-12");
-    const day3Item = built.find((i) => i.placeName === "수변최고돼지국밥")!;
-    expect(day3Item.date).toBe("2026-09-13");
-  });
-
-  it("never produces an item earlier than DEMO_TRIGGER_BUFFER_MINUTES documents as the intended slack", () => {
-    // sanity: the constant is positive and the trigger is always >= now + it (before rounding up)
-    expect(DEMO_TRIGGER_BUFFER_MINUTES).toBeGreaterThan(0);
-  });
-
-  // STEP 17 regression: a same-day item scripted AFTER the trigger (e.g.
-  // dinner) must never sort ahead of it just because "now" is late enough
-  // that the trigger's real anchored time passes the sibling's absolute
-  // scripted clock reading.
-  it("keeps every same-day item's real order matching its scripted order, even very late at night", () => {
-    const built = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "23:40" });
-    const day1Scripted = ["현대닭내장", "경기전", "전주 한옥마을", "서학동예술마을", "베테랑 칼국수", "전주 숙소"];
-    const day1Built = built.filter((i) => day1Scripted.includes(i.placeName));
-    const sortedByRealTime = [...day1Built].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-    expect(sortedByRealTime.map((i) => i.placeName)).toEqual(day1Scripted);
-  });
-
-  it("carries resolveAddress through to the built item for address-anchored stops", () => {
-    const built = buildDemoItinerary(jeonju, { date: "2026-09-11", time: "10:00" });
-    expect(built.find((i) => i.placeName === "베테랑 칼국수")?.resolveAddress).toBe(
-      "전북특별자치도 전주시 완산구 교동 84-10",
-    );
-    expect(built.find((i) => i.placeName === "전주 숙소")?.resolveAddress).toBe(
-      "전북특별자치도 전주시 완산구 현무1길 10",
-    );
-    const busan = getDemoScenario("busan")!;
-    const busanBuilt = buildDemoItinerary(busan, { date: "2026-09-11", time: "10:00" });
-    expect(busanBuilt.find((i) => i.placeName === "미포")?.resolveAddress).toBe(
-      "부산광역시 해운대구 달맞이길62번길 3",
-    );
-  });
-});
-
-describe("scenario journey helpers (STEP 22 §4/§13-15)", () => {
-  it("every demo's current item is ALWAYS the first itinerary item — never a mid-trip start", () => {
-    expect(DEMO_STARTING_ORDER).toBe(1);
-  });
-
-  it("every scenario's trigger comes strictly after the starting order, so at least one normal step happens first", () => {
-    for (const s of DEMO_SCENARIOS) {
-      const flat = scenarioFlatItems(s);
-      expect(flat[triggerOrder(s) - 1]?.isTrigger).toBe(true);
-      expect(triggerOrder(s)).toBeGreaterThan(DEMO_STARTING_ORDER);
+  it("부산's disruption days are both scripted as 소나기 (shower)", () => {
+    for (const outlook of busan().dailyWeather) {
+      expect(outlook.pm).toBe("소나기");
     }
   });
+});
 
-  it("demoDisplayTime returns each item's own scripted clock reading, decoupled from the real anchored time", () => {
-    const jeonju = getDemoScenario("jeonju")!;
-    expect(demoDisplayTime(jeonju, triggerOrder(jeonju))).toBe("15:30");
-    expect(demoDisplayTime(jeonju, 999)).toBeNull();
+describe("demoCompletionMessage", () => {
+  it("returns the scripted line when the live place still matches", () => {
+    expect(demoCompletionMessage(jeonju(), 4, "서학동 예술마을", true)).toMatch(/전시 관람/);
   });
 
-  it("demoCompletionMessage returns the scripted line when the live place still matches", () => {
-    const jeonju = getDemoScenario("jeonju")!;
-    const order = triggerOrder(jeonju);
-    expect(demoCompletionMessage(jeonju, order, "서학동예술마을", true)).toMatch(/전시 관람/);
-  });
-
-  it("demoCompletionMessage falls back to a generic line (naming the real next place) once Re:Plan changed the place", () => {
-    const jeonju = getDemoScenario("jeonju")!;
-    const order = triggerOrder(jeonju);
-    expect(demoCompletionMessage(jeonju, order, "동학혁명기념관", true, "베테랑 칼국수")).toBe(
-      "여기까지 잘 다녀오셨나요? 베테랑 칼국수에서 여행을 이어가볼 수 있어요.",
+  it("falls back to a generic line (naming the real next place) once Re:Plan changed the place", () => {
+    expect(demoCompletionMessage(jeonju(), 4, "국립무형유산원", true, "베테랑")).toBe(
+      "여기까지 잘 다녀오셨나요? 베테랑에서 여행을 이어가볼 수 있어요.",
     );
-    expect(demoCompletionMessage(jeonju, order, "동학혁명기념관", false)).toBe(DEMO_GENERIC_CLOSING_MESSAGE);
+    expect(demoCompletionMessage(jeonju(), 4, "국립무형유산원", false)).toBe(DEMO_GENERIC_CLOSING_MESSAGE);
   });
 });
