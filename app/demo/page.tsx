@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Compass, MapPin, RefreshCw, Route } from "lucide-react";
+import { ArrowRight, Compass, RefreshCw, Route } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -111,20 +111,19 @@ export default function DemoPage() {
 
       <p className="mt-8 text-sm font-medium text-ink">이제 직접 체험해보세요</p>
       <p className="mt-1 text-xs text-ink-muted">
-        아래 세 가지는 체험을 위해 미리 구성한 상황이에요 — 실제 여행에서는 그날의 진짜 날씨·교통에 맞춰 같은 과정이 일어나요.
+        아래 세 여행은 체험을 위해 미리 구성했어요 — 실제 여행에서는 그날의 진짜 상황에 맞춰 같은 과정이 일어나요.
       </p>
 
       <div className="mt-4 flex flex-col divide-y divide-line">
         {DEMO_SCENARIOS.map((s) => (
           <div key={s.id} className="flex flex-col gap-3 py-6 first:pt-0">
             <div>
-              <h2 className="text-xl leading-snug font-semibold text-ink">{s.cardHeadline}</h2>
+              <h2 className="text-xl leading-snug font-semibold text-ink">{s.cardTitle}</h2>
               <p className="mt-1 text-sm text-ink-muted">
-                {s.cardDuration} · {s.cardTitle}
+                {s.cardDuration} · {s.conceptTagline}
               </p>
-              <p className="mt-1.5 flex items-start gap-1.5 text-sm text-ink">
-                <MapPin className="mt-0.5 size-3.5 shrink-0 text-brand" aria-hidden />
-                {s.cardDescription}
+              <p className="mt-1.5 text-sm text-ink">
+                {s.travelers.map((t) => t.name).join(" · ")}
               </p>
             </div>
             <button
@@ -132,7 +131,7 @@ export default function DemoPage() {
               onClick={() => void start(s)}
               className="flex min-h-12 items-center justify-center gap-1.5 self-start rounded-xl border border-line px-5 text-sm font-medium text-ink transition-colors hover:border-brand hover:text-brand"
             >
-              {s.cardTitle} 상황 변화 체험
+              {s.cardTitle} 여행 체험하기
               <ArrowRight className="size-4" aria-hidden />
             </button>
           </div>

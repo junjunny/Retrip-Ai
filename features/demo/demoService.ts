@@ -16,11 +16,15 @@
  *    is left honestly unconfirmed, same as the real flow. A few items
  *    (e.g. "전주 숙소") carry a real `resolveAddress` instead and resolve by
  *    address (`/resolve?addr=`) rather than by name.
- * 3. (STEP 17) Marks every item before the scenario's "starting current"
- *    item completed — via the exact same `{ order, complete: true }` PATCH
- *    a real traveler's own "여기까지 완료했어요" click sends — so the trip
- *    opens already a few steps into its day, not at item 1 (see
- *    `startingCurrentOrder`'s doc comment).
+ * 3. (STEP 22 §4) Never pre-completes anything. A demo trip always opens
+ *    with item 1 as "current" — the exact same generic journey UI a brand
+ *    new ordinary trip already shows for its own first item (see
+ *    `DEMO_STARTING_ORDER`'s doc comment). Earlier steps (through STEP 17-21)
+ *    pre-completed every item up to the trigger so a judge landed "a few
+ *    steps into the day" — that shortcut is exactly what made a demo trip
+ *    look like it started mid-itinerary (e.g. 부산 opening on "수변최고돼지
+ *    국밥"), so STEP 22 removes it: the traveler now walks every real
+ *    "완료 -> 다음" step themselves, from the very first stop.
  *
  * 4. (STEP 22) Seeds the scenario's 3 real travelers through the exact SAME
  *    `/api/trip/{tripId}/submit` endpoint a human joining via the invite
@@ -36,7 +40,7 @@
 import { createTrip, getTrip } from "@/features/trip";
 import { nowKst } from "@/lib/kst";
 
-import { buildDemoItinerary, startingCurrentOrder, type DemoScenario, type DemoTraveler } from "./demoScenarios";
+import { buildDemoItinerary, type DemoScenario, type DemoTraveler } from "./demoScenarios";
 
 export interface DemoStartProgress {
   resolved: number;
@@ -47,7 +51,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // Stay comfortably clear of the per-trip resolve cooldown (1s) — see lib/rateLimit.ts.
 const RESOLVE_SPACING_MS = 1_100;
 
-/** Builds the scenario's itinerary, creates the trip, resolves every place, then pre-completes the lead-in items. Returns the new tripId. */
+/** Builds the scenario's itinerary, creates the trip, resolves every place, and seeds its 3 real travelers. Returns the new tripId — item 1 is current, nothing is pre-completed (STEP 22 §4). */
 export async function startDemo(
   scenario: DemoScenario,
   onProgress?: (p: DemoStartProgress) => void,
@@ -96,11 +100,6 @@ export async function startDemo(
     if (i < total - 1) await sleep(RESOLVE_SPACING_MS);
   }
   onProgress?.({ resolved: total, total });
-
-  const startingCurrent = startingCurrentOrder(scenario);
-  for (let order = 1; order < startingCurrent; order++) {
-    await markCompleted(tripId, order);
-  }
 
   await travelersSeeded;
   return tripId;
@@ -175,16 +174,3 @@ async function resolveAndConfirm(
   }
 }
 
-async function markCompleted(tripId: string, order: number): Promise<void> {
-  try {
-    await fetch(`/api/trip/${tripId}/itinerary`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ order, complete: true }),
-    });
-  } catch {
-    // best-effort — a lead-in item that fails to mark completed just stays
-    // "planned"; the journey UI's own "여기까지 완료했어요" button still
-    // lets the traveler move past it by hand.
-  }
-}

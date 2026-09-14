@@ -463,7 +463,7 @@ export function ReplanPanel({
                 disabled={applying}
                 className="min-h-11 flex-1 rounded-xl bg-brand px-4 text-sm font-medium text-brand-ink transition-opacity disabled:opacity-60"
               >
-                {applying ? "이어가는 중..." : "이 일정으로 이어가기"}
+                {applying ? "이어가는 중..." : "이 일정으로 변경"}
               </button>
               <button
                 type="button"
@@ -471,7 +471,7 @@ export function ReplanPanel({
                 disabled={applying}
                 className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm text-ink disabled:opacity-60"
               >
-                그대로 여행하기
+                현재 일정 유지
               </button>
             </div>
           ) : (

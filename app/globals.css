@@ -92,6 +92,29 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* STEP 22 §31 — Korean text wraps by word (어절) unit, never mid-syllable;
+     overflow-wrap still lets an unbreakable long English/URL token wrap
+     instead of overflowing. Global default; nothing needs to opt in. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* STEP 22 §19 — the Demo's variable-state banner fades and lifts in once,
+   never loops/pulses/flashes. `prefers-reduced-motion` above already clamps
+   any animation-duration to 0.01ms, so this degrades to an instant
+   appearance with the exact same layout for a reduced-motion viewer. */
+@keyframes variable-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-variable-enter {
+  animation: variable-enter 320ms ease-out both;
 }
 
 /* One visible, consistent focus treatment everywhere — never color alone. */

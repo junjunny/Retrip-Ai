@@ -1,32 +1,38 @@
 /**
- * features/demo — STEP 16/17 Demo Mode. A demo trip is a REAL trip (created
- * via the ordinary `features/trip/createTrip`), so the entire rest of the
- * product — candidate generation, deterministic scoring, Kakao Mobility,
- * Re:Plan Preview/Apply — runs completely unmodified. This module only:
+ * features/demo — STEP 16/17/21/22 Demo Mode. A demo trip is a REAL trip
+ * (created via the ordinary `features/trip/createTrip`), so the entire rest
+ * of the product — candidate generation, deterministic scoring, Kakao
+ * Mobility, Re:Plan Preview/Apply — runs completely unmodified. This module
+ * only:
  *
- * 1. Holds each scenario's static schedule + a deliberate `tripPreference`
- *    (a plausible, real group preference — never a scoring shortcut; see
- *    module docstring in features/scoring/scoring.ts on why a real,
- *    strongly-weighted preference profile is enough on its own for a
- *    well-matching real candidate to legitimately outscore "keep current",
- *    which always scores category-neutral).
+ * 1. Holds each scenario's static schedule and its 3 real travelers'
+ *    preferences (STEP 22) — seeded through the ordinary `/submit` endpoint
+ *    (demoService.ts) so `groupSatisfaction` scoring reads their real,
+ *    genuinely different vectors, never a single hand-picked aggregate.
  * 2. Anchors that fixed schedule to "right now" so the situational item is
  *    always eligible for Re:Plan regardless of when a judge opens the demo
  *    (Re:Plan only ever considers TODAY's remaining flexible items — that
  *    rule is untouched, so the demo must arrive already inside it).
- * 3. (STEP 17) Describes the journey narrative — a fixed "Demo Clock" label,
- *    a deterministic per-item traveler message, and which item is "current"
- *    the moment the trip is created — purely presentational bookkeeping the
- *    Trip Detail page reads to show progress. None of it is read by
- *    scoring/candidates/Re:Plan either.
+ * 3. Describes the journey narrative — a DEMO-ONLY simulated weather
+ *    outlook per day and a scripted "10월 N일" display date (STEP 22 §2/§3)
+ *    — decoupled from the real anchored date/time exactly the same way
+ *    `demoDisplayTime` already decouples the story's own clock reading from
+ *    the real Re:Plan-eligibility timestamp. Demo scenario data is NEVER
+ *    presented as real weather/traffic data (see `dailyWeather`'s doc
+ *    comment) — that boundary is the whole reason this data lives here and
+ *    not in features/travel-state.
  *
  * Nothing here is read by Travel State, candidate generation, scoring, or
  * Re:Plan — a demo trip earns its result the same way any real trip would.
+ * The one deliberate, narrowly-scoped exception is the 대전 scenario's
+ * intended-replacement override — see features/demo/demoReplanOverride.ts's
+ * module doc for why and how it stays inside the Demo/Production boundary.
  */
 import { buildExperienceProfile } from "@/features/experience";
+import { PREFERENCE_KEYS, PREFERENCE_MIN, PREFERENCE_NEUTRAL } from "@/features/participant/participant";
 import { JOURNEY_GENERIC_CLOSING_MESSAGE, journeyGenericContinueMessage } from "@/features/trip/journeyMessages";
 import { addDays, minutesToTime, timeToMinutes } from "@/lib/kst";
-import type { ExperienceProfile, IndoorOutdoor, PreferenceVector, ScheduleType, TravelPace } from "@/types";
+import type { ExperienceProfile, IndoorOutdoor, PreferenceKey, PreferenceVector, ScheduleType, TravelPace } from "@/types";
 
 /** How far past "now" the situational item is scheduled — enough slack for a judge to click through Home -> Demo -> Trip Detail -> Re:Plan before the clock passes it. */
 export const DEMO_TRIGGER_BUFFER_MINUTES = 20;
@@ -67,9 +73,66 @@ export interface DemoScenarioItem {
   resolveAddress?: string;
 }
 
+/** The exact named axis + value a traveler was given (STEP 22 §6-9) — shown verbatim in the participant detail view, never collapsed into the internal scoring labels. */
+export interface PreferenceDisplayItem {
+  label: string;
+  value: number;
+}
+
 /**
- * (STEP 22) One of a demo trip's 3 real travelers — seeded through the exact
- * SAME `/api/trip/{tripId}/submit` endpoint a human joining via invite link
+ * One display axis label -> the real `PreferenceKey` it feeds (STEP 22 §9).
+ * There are more named concepts across the three cities than the product's
+ * 8 real preference axes, so this is an intentional many-to-one mapping —
+ * documented here once, reused by `deriveScoringPreferences` for every
+ * traveler, never re-decided per person. Grounded in what each real axis
+ * already means to Candidate Generation (`PREFERENCE_TO_CONTENT_TYPE`,
+ * features/candidate/candidateGeneration.ts): "바다"/"풍경"/"산책"/"골목·산책"/
+ * "새로운 장소" are all real-world contentType 12 (관광지) browsing, so they
+ * all feed `nature`; "전통체험"/"과학·전시"/"문화·전시"/"과학" are all
+ * contentType 14 (문화시설) browsing, so they all feed `culture`.
+ */
+const DISPLAY_LABEL_TO_KEY: Record<string, PreferenceKey> = {
+  "문화·역사": "culture",
+  "골목·산책": "nature",
+  전통체험: "culture",
+  음식: "food",
+  "사진·풍경": "photo",
+  "카페·휴식": "cafe",
+  액티비티: "activity",
+  바다: "nature",
+  풍경: "nature",
+  "여유·휴식": "relax",
+  산책: "nature",
+  사진: "photo",
+  "과학·전시": "culture",
+  "새로운 장소": "nature",
+  카페: "cafe",
+  "문화·전시": "culture",
+  과학: "culture",
+};
+
+/**
+ * Real 1..10 vector for `/submit` (STEP 22 §9) — for every real axis that
+ * more than one of a traveler's named labels maps to, this takes the MAX of
+ * those ratings: a stated strong interest is never diluted by averaging it
+ * with a related-but-weaker one. Any real axis with no mapped label stays
+ * at PREFERENCE_NEUTRAL, never invented.
+ */
+export function deriveScoringPreferences(display: readonly PreferenceDisplayItem[]): PreferenceVector {
+  const byKey = new Map<PreferenceKey, number>();
+  for (const { label, value } of display) {
+    const key = DISPLAY_LABEL_TO_KEY[label];
+    if (!key) throw new Error(`demoScenarios: no scoring mapping for display label "${label}"`);
+    byKey.set(key, Math.max(byKey.get(key) ?? PREFERENCE_MIN, value));
+  }
+  return Object.fromEntries(
+    PREFERENCE_KEYS.map((k) => [k, byKey.get(k) ?? PREFERENCE_NEUTRAL]),
+  ) as PreferenceVector;
+}
+
+/**
+ * One of a demo trip's 3 real travelers — seeded through the exact SAME
+ * `/api/trip/{tripId}/submit` endpoint a human joining via invite link
  * uses (see demoService.ts), so `groupSatisfaction` scoring
  * (features/scoring/scoring.ts) reads their REAL, genuinely different raw
  * preference vectors, not a single hand-picked aggregate. `role` is a
@@ -81,11 +144,38 @@ export interface DemoScenarioItem {
 export interface DemoTraveler {
   name: string;
   role: "HOST" | "MEMBER";
+  /** the exact named axes this traveler was given (STEP 22 §6-8) — shown verbatim in the participant detail view. */
+  displayPreferences: readonly PreferenceDisplayItem[];
+  /** derived from `displayPreferences` via `deriveScoringPreferences` — never hand-typed separately, so it can never silently drift from the axes actually shown to the user. */
   preferences: PreferenceVector;
   pace: TravelPace;
   indoorOutdoor: IndoorOutdoor;
   /** one short, natural-language line of what this person cares about — shown on the pre-trip "여행 설정 확인" screen, never a raw 1-10 number there. */
   blurb: string;
+}
+
+function traveler(
+  name: string,
+  role: "HOST" | "MEMBER",
+  displayPreferences: readonly PreferenceDisplayItem[],
+  pace: TravelPace,
+  indoorOutdoor: IndoorOutdoor,
+  blurb: string,
+): DemoTraveler {
+  return { name, role, displayPreferences, preferences: deriveScoringPreferences(displayPreferences), pace, indoorOutdoor, blurb };
+}
+
+/**
+ * A DEMO-ONLY simulated weather outlook for one day (STEP 22 §3) — never
+ * fetched from KMA, never presented as a real forecast. This is a
+ * SCENARIO-authored condition so a judge can reliably experience a
+ * variable, regardless of what the real weather happens to be when the
+ * demo runs. The UI must always carry a "DEMO 상황" style label alongside
+ * this data — see components/demo/DemoTripSetup.tsx.
+ */
+export interface DemoWeatherOutlook {
+  am: string;
+  pm: string;
 }
 
 export interface DemoScenario {
@@ -94,12 +184,10 @@ export interface DemoScenario {
   title: string;
   /** short scenario name on the /demo card, e.g. "전주". */
   cardTitle: string;
-  /** (STEP 17) the card's headline, e.g. "교통 혼잡으로 일정이 달라진 여행" — replaces the old situation-line-as-headline copy; never mentions AI/score/algorithm/"체험". */
-  cardHeadline: string;
-  /** one line of trip-length context under the card title, e.g. "2박 3일". */
+  /** (STEP 22 §34) one short line naming this city's travel identity, e.g. "골목과 전통을 천천히" — never a long description. */
+  conceptTagline: string;
+  /** one line of trip-length context under the card title, e.g. "1박 2일". */
   cardDuration: string;
-  /** (STEP 19 §18) one short line on the /demo card naming WHAT changes in this scenario — e.g. "교통 때문에 다음 일정이 밀리는 상황". A scripted preview, never confused with a real trip's own Travel State (§18's explicit "체험 시나리오" framing lives in the page copy, not here). */
-  cardDescription: string;
   /** the traveler-voiced situation line — shown on the trip detail banner once the traveler reaches the trigger item. Never mentions AI/score/algorithm. */
   situationLine: string;
   /**
@@ -118,8 +206,9 @@ export interface DemoScenario {
   /**
    * The group's real Experience Profile — the arithmetic mean of the 3
    * travelers' own vectors above (`buildExperienceProfile`, STEP 6's actual
-   * aggregation, never a second formula). Computed once per scenario below,
-   * not authored by hand — so it can never disagree with what
+   * aggregation, never a second formula), rounded to whole integers (see
+   * `groupProfile`'s doc comment). Computed once per scenario below, not
+   * authored by hand — so it can never disagree with what
    * `groupSatisfaction` scoring independently derives from those same 3
    * vectors via `listPreferenceVectors`.
    */
@@ -127,32 +216,21 @@ export interface DemoScenario {
   /** index into `days` of the day containing the trigger item. */
   triggerDayIndex: number;
   /**
-   * (STEP 17) The fixed clock reading shown when the traveler first opens
-   * this demo — NOT the real system clock, so every judge sees the exact
-   * same starting moment regardless of when they run it (spec §4). It sits
-   * just before the item immediately preceding the trigger's own scripted
-   * time — the story already has the traveler most of the way through the
-   * day, arriving at the interesting part quickly.
+   * (STEP 17) The fixed clock reading shown once the traveler reaches the
+   * trigger day's own first item — NOT the real system clock, so every
+   * judge sees the exact same starting moment regardless of when they run
+   * it (spec §4).
    */
   demoClockLabel: string;
+  /** DEMO-ONLY simulated weather, one entry per `days` index — see `DemoWeatherOutlook`. */
+  dailyWeather: readonly DemoWeatherOutlook[];
   days: DemoScenarioItem[][];
 }
 
-/**
- * The group's real Experience Profile — see `DemoScenario.tripPreference`'s
- * doc comment. Rounded to whole integers: `createTrip`'s own validation
- * (features/trip/trip.ts, unchanged — the same rule the "이번 여행은 어떤
- * 여행인가요?" form's integer 1-10 slider already produces) requires an
- * integer `tripPreference`, while `buildExperienceProfile`'s group MEAN can
- * be fractional (e.g. 8.33). Rounding here is a storage-format concession,
- * not a second aggregation — `groupSatisfaction` scoring still reads the 3
- * travelers' own unrounded vectors directly via `listPreferenceVectors`.
- */
+/** The group's real Experience Profile — see `DemoScenario.tripPreference`'s doc comment. Rounded to whole integers: `createTrip`'s own validation (features/trip/trip.ts, unchanged) requires an integer `tripPreference`, while `buildExperienceProfile`'s group MEAN can be fractional. `groupSatisfaction` scoring still reads the 3 travelers' own unrounded vectors directly via `listPreferenceVectors`. */
 function groupProfile(travelers: readonly DemoTraveler[]): ExperienceProfile {
   const mean = buildExperienceProfile(travelers.map((t) => t.preferences))!;
-  return Object.fromEntries(
-    Object.entries(mean).map(([key, value]) => [key, Math.round(value)]),
-  ) as ExperienceProfile;
+  return Object.fromEntries(Object.entries(mean).map(([key, value]) => [key, Math.round(value)])) as ExperienceProfile;
 }
 
 // Re-exported for backward compatibility with existing demo call sites —
@@ -165,96 +243,115 @@ function groupProfile(travelers: readonly DemoTraveler[]): ExperienceProfile {
 export const DEMO_GENERIC_CLOSING_MESSAGE = JOURNEY_GENERIC_CLOSING_MESSAGE;
 
 /**
- * Real-API verification notes (STEP 16 — never hardcode the *result*, only
- * tune the *input*; see the module docstring):
+ * Real-API verification notes (STEP 16/22 — never hardcode the *result*,
+ * only tune the *input*; see the module docstring):
  *
- * - 부산 (해운대해수욕장 -> a real 관광지 within reach, e.g. SEA LIFE
- *   부산아쿠아리움, 131m apart): confirmed via real TourAPI/Kakao Mobility
- *   calls — but a contentTypeId 12 candidate is scored on THREE profile axes
- *   at once (`nature`+`photo`+`relax` all map to code 12 — see
- *   `PREFERENCE_TO_CONTENT_TYPE`), not just `nature` alone. A profile that
- *   only raises `nature` gets its Experience Preservation average diluted by
- *   the other two axes sitting at neutral — raising all three real axes
- *   together (not a scoring change — the same real profile a
- *   nature-and-photo-minded beach group would plausibly report) restores a
- *   comfortable real margin.
  * - 전주 (서학동예술마을 -> a real 문화시설): the specific place named in the
  *   original brief ("국립무형유산원") does not exist in TourAPI's dataset at
  *   all, at any radius — it can never surface through real candidate
- *   generation. `culture`/`photo` bias the search toward contentTypeId
- *   14/15 (문화시설/축제), where REAL nearby candidates do exist (e.g. 전주
- *   부채문화관, 전주공예품전시관, 서학동사진미술관, all within 1km) — the demo
- *   shows whichever one the real deterministic scoring actually picks.
- * - 대전 (한빛탑 -> a real 관광지 within reach): "대청호 명상정원" is 8.7km
- *   away and, separately, `MAX_CANDIDATES_PER_SLOT` (5) caps the pool to the
- *   5 CLOSEST real TourAPI hits — a real query centered on 한빛탑 shows the
- *   closest contentTypeId-12 candidates are all under 700m; anything past
- *   ~1.2km, "대청호 명상정원" included, never reaches the top 5 regardless of
- *   radius. Same `nature`/`photo`/`relax` dilution as 부산 applies, so the
- *   same all-three-axes-raised profile is used. (STEP 17: among the tied
- *   top-5 real candidates the deterministic tie-break — finalScore, then
- *   real travel burden, then placeId — can land on an unglamorous real pick;
- *   that's genuine emergent behavior, not a bug, and is not gamed here.)
+ *   generation. The group's real culture/photo/nature signal biases the
+ *   search toward contentTypeId 12/14/15, where REAL nearby candidates do
+ *   exist (e.g. 전주 부채문화관, 전주공예품전시관, 서학동사진미술관, 남천교
+ *   청연루, all within 1km) — the demo shows whichever one the real
+ *   deterministic scoring actually picks.
+ * - 부산 (미포 -> a real 관광지 within reach): 해운대/청사포/미포/광안리 all
+ *   verified real via TourAPI+Kakao Local; 미포 resolves at "candidate"
+ *   confidence (TourAPI only, no Kakao cross-match) and is pinned by its
+ *   real street address to avoid an ambiguous keyword match.
+ * - 대전 (대청호자연수변공원 -> real 관광지 in 동구 추동, ~1.1km from the
+ *   scenario's own intended-replacement place "명상정원") — see
+ *   features/demo/demoReplanOverride.ts for why 대전's intended replacement
+ *   is handled as an explicit, narrowly-scoped Demo-scenario connection
+ *   rather than left to `locationBasedList2`, which does not index that
+ *   specific TourAPI content record from ANY real anchor (verified via live
+ *   probe, same class of gap as "국립무형유산원" above).
  */
 export const DEMO_SCENARIOS: readonly DemoScenario[] = [
   {
     id: "jeonju",
     destination: "전주",
-    title: "2박 3일 전주 여행",
+    title: "1박 2일 전주 여행",
     cardTitle: "전주",
-    cardHeadline: "교통 혼잡으로 일정이 달라진 여행",
-    cardDuration: "2박 3일",
-    cardDescription: "교통 때문에 다음 일정이 밀리는 상황",
+    conceptTagline: "골목과 전통을 천천히",
+    cardDuration: "1박 2일",
     situationLine: "현재 주변 교통이 혼잡해 이동에 시간이 더 걸리고 있어요.",
     impactLine: "지금 속도라면 다음 일정까지 이동 부담이 커질 수 있어요.",
     situationKind: "traffic",
     travelers: [
-      {
-        name: "민준",
-        role: "HOST",
-        preferences: { nature: 9, culture: 9, food: 7, cafe: 5, shopping: 4, activity: 3, photo: 7, relax: 5 },
-        pace: "slow",
-        indoorOutdoor: "balanced",
-        blurb: "문화·역사와 골목 산책을 좋아해요.",
-      },
-      {
-        name: "서연",
-        role: "MEMBER",
-        preferences: { nature: 7, culture: 6, food: 10, cafe: 9, shopping: 5, activity: 3, photo: 8, relax: 6 },
-        pace: "normal",
-        indoorOutdoor: "indoor",
-        blurb: "맛있는 음식과 예쁜 카페를 즐기는 게 중요해요.",
-      },
-      {
-        name: "도윤",
-        role: "MEMBER",
-        preferences: { nature: 8, culture: 8, food: 5, cafe: 6, shopping: 4, activity: 4, photo: 10, relax: 5 },
-        pace: "slow",
-        indoorOutdoor: "outdoor",
-        blurb: "사진으로 남길 수 있는 분위기와 오래된 장소를 좋아해요.",
-      },
+      traveler(
+        "민준",
+        "HOST",
+        [
+          { label: "문화·역사", value: 9 },
+          { label: "골목·산책", value: 9 },
+          { label: "전통체험", value: 8 },
+          { label: "음식", value: 7 },
+          { label: "사진·풍경", value: 7 },
+          { label: "카페·휴식", value: 5 },
+          { label: "액티비티", value: 3 },
+        ],
+        "slow",
+        "balanced",
+        "유명한 곳을 많이 찍는 것보다 전주의 분위기를 느끼는 게 중요해요.",
+      ),
+      traveler(
+        "서연",
+        "MEMBER",
+        [
+          { label: "음식", value: 10 },
+          { label: "카페·휴식", value: 9 },
+          { label: "사진·풍경", value: 8 },
+          { label: "골목·산책", value: 7 },
+          { label: "문화·역사", value: 6 },
+          { label: "전통체험", value: 5 },
+          { label: "액티비티", value: 3 },
+        ],
+        "normal",
+        "indoor",
+        "전주까지 왔으면 맛있는 음식과 예쁜 카페를 즐기는 게 중요해요.",
+      ),
+      traveler(
+        "도윤",
+        "MEMBER",
+        [
+          { label: "사진·풍경", value: 10 },
+          { label: "문화·역사", value: 8 },
+          { label: "골목·산책", value: 8 },
+          { label: "전통체험", value: 7 },
+          { label: "카페·휴식", value: 6 },
+          { label: "음식", value: 5 },
+          { label: "액티비티", value: 4 },
+        ],
+        "slow",
+        "outdoor",
+        "사진으로 남길 수 있는 분위기와 오래된 장소를 좋아해요.",
+      ),
     ],
     get tripPreference() {
       return groupProfile(this.travelers);
     },
     triggerDayIndex: 0,
-    demoClockLabel: "13:00",
+    demoClockLabel: "11:00",
+    dailyWeather: [
+      { am: "맑음", pm: "흐림" },
+      { am: "맑음", pm: "맑음" },
+    ],
     days: [
       [
         {
-          time: "13:00",
+          time: "11:00",
           placeName: "현대닭내장",
           scheduleType: "flexible",
           completionMessage: "점심은 괜찮으셨나요? 이제 경기전으로 이동해볼게요.",
         },
         {
-          time: "14:00",
+          time: "13:00",
           placeName: "경기전",
           scheduleType: "flexible",
           completionMessage: "경기전은 잘 둘러보셨나요? 다음은 전주 한옥마을이에요.",
         },
         {
-          time: "15:00",
+          time: "14:00",
           placeName: "전주 한옥마을",
           scheduleType: "flexible",
           completionMessage: "한옥마을 구경은 어떠셨나요? 다음 일정은 서학동예술마을이에요.",
@@ -264,7 +361,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
         // (the literal brief's wording) matches nothing real (STEP 16
         // verification). Same place, the name real search engines know it by.
         {
-          time: "16:00",
+          time: "15:30",
           placeName: "서학동예술마을",
           scheduleType: "flexible",
           isTrigger: true,
@@ -287,40 +384,14 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
       ],
       [
         {
-          time: "11:00",
-          placeName: "점심",
+          time: "10:00",
+          placeName: "전주덕진공원",
           scheduleType: "flexible",
-          completionMessage: "점심은 맛있게 드셨나요? 다음은 덕진공원이에요.",
+          completionMessage: "덕진공원 산책은 어떠셨나요? 다음은 마지막 점심이에요.",
         },
         {
-          time: "13:00",
-          placeName: "덕진공원",
-          scheduleType: "flexible",
-          completionMessage: "덕진공원은 산책하기 어떠셨나요? 다음은 저녁 식사예요.",
-        },
-        {
-          time: "18:00",
+          time: "12:30",
           placeName: "다리미 삼겹살",
-          scheduleType: "flexible",
-          completionMessage: "삼겹살은 맛있게 드셨나요? 오늘도 여기까지예요.",
-        },
-        {
-          time: "20:00",
-          placeName: "전주 호텔원",
-          scheduleType: "fixed",
-          completionMessage: "둘째 날 여행은 여기까지예요. 마지막 날 일정을 이어가볼게요.",
-        },
-      ],
-      [
-        {
-          time: "11:00",
-          placeName: "또또국수",
-          scheduleType: "flexible",
-          completionMessage: "아침 식사는 어떠셨나요? 마지막 코스로 이동해볼게요.",
-        },
-        {
-          time: "14:00",
-          placeName: "전주월드컵경기장",
           scheduleType: "flexible",
           completionMessage: "즐거운 전주 여행이었나요? 계획이 달라져도 여행은 계속되니까요.",
         },
@@ -330,46 +401,102 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
   {
     id: "busan",
     destination: "부산",
-    title: "1박 2일 부산 여행",
+    title: "2박 3일 부산 여행",
     cardTitle: "부산",
-    cardHeadline: "갑작스러운 소나기로 일정이 달라진 여행",
-    cardDuration: "1박 2일",
-    cardDescription: "갑작스러운 비로 야외 일정이 흔들리는 상황",
+    conceptTagline: "바다와 풍경을 따라",
+    cardDuration: "2박 3일",
     situationLine: "갑작스러운 소나기가 내리고 있어요.",
     impactLine: "지금 계획대로 진행하면 원래 기대했던 야외 경험과 달라질 수 있어요.",
     situationKind: "weather",
     travelers: [
-      {
-        name: "준호",
-        role: "HOST",
-        preferences: { nature: 10, culture: 4, food: 6, cafe: 5, shopping: 4, activity: 5, photo: 8, relax: 9 },
-        pace: "slow",
-        indoorOutdoor: "outdoor",
-        blurb: "바다와 여유로운 시간을 가장 중요하게 생각해요.",
-      },
-      {
-        name: "지우",
-        role: "MEMBER",
-        preferences: { nature: 8, culture: 5, food: 6, cafe: 8, shopping: 4, activity: 4, photo: 10, relax: 6 },
-        pace: "normal",
-        indoorOutdoor: "outdoor",
-        blurb: "예쁜 풍경을 사진으로 남기는 게 여행의 목적이에요.",
-      },
-      {
-        name: "현우",
-        role: "MEMBER",
-        preferences: { nature: 7, culture: 5, food: 10, cafe: 4, shopping: 4, activity: 9, photo: 5, relax: 4 },
-        pace: "fast",
-        indoorOutdoor: "balanced",
-        blurb: "먹을 것과 놀 거리가 많은 걸 좋아해요.",
-      },
+      traveler(
+        "준호",
+        "HOST",
+        [
+          { label: "바다", value: 10 },
+          { label: "풍경", value: 9 },
+          { label: "여유·휴식", value: 9 },
+          { label: "산책", value: 8 },
+          { label: "사진", value: 8 },
+          { label: "음식", value: 6 },
+          { label: "문화·역사", value: 4 },
+        ],
+        "slow",
+        "outdoor",
+        "부산까지 왔는데 바다를 안 보면 여행한 느낌이 안 나요.",
+      ),
+      traveler(
+        "승찬",
+        "MEMBER",
+        [
+          { label: "사진", value: 10 },
+          { label: "풍경", value: 10 },
+          { label: "바다", value: 8 },
+          { label: "카페·휴식", value: 8 },
+          { label: "산책", value: 7 },
+          { label: "음식", value: 6 },
+          { label: "문화·역사", value: 5 },
+        ],
+        "normal",
+        "outdoor",
+        "예쁜 풍경을 보고 사진으로 남기는 게 여행의 가장 큰 목적이에요.",
+      ),
+      traveler(
+        "현우",
+        "MEMBER",
+        [
+          { label: "음식", value: 10 },
+          { label: "액티비티", value: 9 },
+          { label: "바다", value: 7 },
+          { label: "산책", value: 6 },
+          { label: "풍경", value: 6 },
+          { label: "문화·역사", value: 5 },
+          { label: "여유·휴식", value: 4 },
+        ],
+        "fast",
+        "balanced",
+        "먹고 놀 게 많으면 만족해요. 너무 느긋한 일정은 지루해요.",
+      ),
     ],
     get tripPreference() {
       return groupProfile(this.travelers);
     },
-    triggerDayIndex: 1,
-    demoClockLabel: "12:50",
+    triggerDayIndex: 0,
+    demoClockLabel: "10:00",
+    dailyWeather: [
+      { am: "맑음", pm: "소나기" },
+      { am: "흐림", pm: "맑음" },
+      { am: "맑음", pm: "맑음" },
+    ],
     days: [
+      [
+        {
+          time: "10:00",
+          placeName: "해운대해수욕장",
+          scheduleType: "flexible",
+          completionMessage: "해변에서 잘 쉬셨나요? 다음은 청사포예요.",
+        },
+        {
+          time: "12:00",
+          placeName: "청사포",
+          scheduleType: "flexible",
+          completionMessage: "청사포는 어떠셨나요? 다음은 미포예요.",
+        },
+        {
+          time: "15:00",
+          placeName: "미포",
+          scheduleType: "flexible",
+          isTrigger: true,
+          completionMessage: "미포는 어떠셨나요? 다음은 광안리예요.",
+          resolveAddress: "부산광역시 해운대구 달맞이길62번길 3",
+        },
+        {
+          time: "17:30",
+          placeName: "광안리",
+          scheduleType: "flexible",
+          completionMessage: "광안리 야경은 어떠셨나요? 첫째 날 여행은 여기까지예요.",
+        },
+      ],
       [
         {
           time: "10:00",
@@ -393,13 +520,13 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
           time: "18:00",
           placeName: "마린횟집 해운대본점",
           scheduleType: "flexible",
-          completionMessage: "회는 맛있게 드셨나요? 오늘 일정은 여기까지예요.",
+          completionMessage: "회는 맛있게 드셨나요? 둘째 날 여행은 여기까지예요.",
         },
         {
           time: "20:00",
           placeName: "한화리조트 해운대",
           scheduleType: "fixed",
-          completionMessage: "첫째 날 여행은 여기까지예요. 둘째 날 일정을 이어가볼게요.",
+          completionMessage: "둘째 날 여행은 여기까지예요. 마지막 날 일정을 이어가볼게요.",
         },
       ],
       [
@@ -407,20 +534,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
           time: "11:00",
           placeName: "수변최고돼지국밥",
           scheduleType: "flexible",
-          completionMessage: "돼지국밥은 맛있게 드셨나요? 다음은 해운대해수욕장이에요.",
-        },
-        {
-          time: "13:00",
-          placeName: "해운대해수욕장",
-          scheduleType: "flexible",
-          isTrigger: true,
-          completionMessage: "해변에서 잘 쉬셨나요? 오늘 여행은 여기까지예요.",
-        },
-        {
-          time: "18:00",
-          placeName: "여행 종료",
-          scheduleType: "fixed",
-          completionMessage: DEMO_GENERIC_CLOSING_MESSAGE,
+          completionMessage: "즐거운 부산 여행이었나요? 계획이 달라져도 여행은 계속되니까요.",
         },
       ],
     ],
@@ -430,68 +544,90 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     destination: "대전",
     title: "1박 2일 대전 여행",
     cardTitle: "대전",
-    cardHeadline: "인파 혼잡으로 일정이 달라진 여행",
+    conceptTagline: "과학과 새로운 발견",
     cardDuration: "1박 2일",
-    cardDescription: "방문객 증가로 일정의 이동 부담이 커지는 상황",
     situationLine: "연예인 축제로 주변에 많은 인파가 몰리고 있어요.",
     impactLine: "지금 인파라면 남은 일정을 편하게 이어가기 어려울 수 있어요.",
     situationKind: "crowd",
     travelers: [
-      {
-        name: "현준",
-        role: "HOST",
-        preferences: { nature: 8, culture: 10, food: 5, cafe: 6, shopping: 4, activity: 4, photo: 7, relax: 4 },
-        pace: "normal",
-        indoorOutdoor: "indoor",
-        blurb: "대전에서만 할 수 있는 전시와 새로운 공간을 좋아해요.",
-      },
-      {
-        name: "유나",
-        role: "MEMBER",
-        preferences: { nature: 8, culture: 6, food: 6, cafe: 10, shopping: 4, activity: 3, photo: 9, relax: 7 },
-        pace: "slow",
-        indoorOutdoor: "indoor",
-        blurb: "분위기 좋은 공간에서 쉬며 사진 찍는 걸 좋아해요.",
-      },
-      {
-        name: "태현",
-        role: "MEMBER",
-        preferences: { nature: 8, culture: 7, food: 10, cafe: 5, shopping: 4, activity: 6, photo: 5, relax: 5 },
-        pace: "normal",
-        indoorOutdoor: "balanced",
-        blurb: "먹는 재미와 새로운 곳을 탐방하는 걸 함께 즐겨요.",
-      },
+      traveler(
+        "현준",
+        "HOST",
+        [
+          { label: "과학·전시", value: 10 },
+          { label: "새로운 장소", value: 9 },
+          { label: "문화·역사", value: 8 },
+          { label: "산책", value: 7 },
+          { label: "사진", value: 7 },
+          { label: "카페", value: 6 },
+          { label: "음식", value: 5 },
+        ],
+        "normal",
+        "indoor",
+        "대전에서만 할 수 있는 경험을 하고 싶어요. 흔한 관광지는 우선순위가 낮아요.",
+      ),
+      traveler(
+        "유나",
+        "MEMBER",
+        [
+          { label: "카페·휴식", value: 10 },
+          { label: "사진", value: 9 },
+          { label: "새로운 장소", value: 8 },
+          { label: "산책", value: 7 },
+          { label: "문화·전시", value: 6 },
+          { label: "음식", value: 6 },
+          { label: "과학", value: 4 },
+        ],
+        "slow",
+        "indoor",
+        "전시도 좋지만 분위기 좋은 공간에서 쉬고 사진 찍는 것도 중요해요.",
+      ),
+      traveler(
+        "태현",
+        "MEMBER",
+        [
+          { label: "음식", value: 10 },
+          { label: "산책", value: 8 },
+          { label: "새로운 장소", value: 8 },
+          { label: "과학·전시", value: 7 },
+          { label: "문화·역사", value: 6 },
+          { label: "사진", value: 5 },
+          { label: "카페", value: 5 },
+        ],
+        "normal",
+        "balanced",
+        "여행은 먹는 재미가 중요하지만, 이것저것 돌아다니며 새로운 곳을 보는 것도 좋아해요.",
+      ),
     ],
     get tripPreference() {
       return groupProfile(this.travelers);
     },
-    triggerDayIndex: 1,
-    demoClockLabel: "11:00",
+    triggerDayIndex: 0,
+    demoClockLabel: "12:00",
+    dailyWeather: [
+      { am: "맑음", pm: "맑음" },
+      { am: "맑음", pm: "맑음" },
+    ],
     days: [
       [
         {
-          time: "11:30",
-          placeName: "광천식당",
-          scheduleType: "flexible",
-          completionMessage: "식사는 맛있게 드셨나요? 다음은 성심당이에요.",
-        },
-        {
-          time: "14:00",
+          time: "12:00",
           placeName: "성심당 본점",
           scheduleType: "flexible",
-          completionMessage: "빵은 맛있게 드셨나요? 다음은 대동하늘공원이에요.",
+          completionMessage: "빵은 맛있게 드셨나요? 다음은 국립중앙과학관이에요.",
         },
         {
-          time: "16:30",
-          placeName: "대동하늘공원",
+          time: "15:00",
+          placeName: "국립중앙과학관",
           scheduleType: "flexible",
-          completionMessage: "하늘공원 풍경은 어떠셨나요? 오늘 일정은 여기까지예요.",
+          completionMessage: "과학관 관람은 어떠셨나요? 다음은 대청호자연수변공원이에요.",
         },
         {
-          time: "19:00",
-          placeName: "롯데시티호텔 대전",
-          scheduleType: "fixed",
-          completionMessage: "첫째 날 여행은 여기까지예요. 둘째 날 일정을 이어가볼게요.",
+          time: "17:00",
+          placeName: "대청호자연수변공원",
+          scheduleType: "flexible",
+          isTrigger: true,
+          completionMessage: "대청호 나들이는 어떠셨나요? 오늘 여행은 여기까지예요.",
         },
       ],
       [
@@ -499,32 +635,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
           time: "11:00",
           placeName: "한밭수목원",
           scheduleType: "flexible",
-          completionMessage: "수목원 산책은 어떠셨나요? 다음은 점심이에요.",
-        },
-        {
-          time: "13:00",
-          placeName: "오씨칼국수",
-          scheduleType: "flexible",
-          completionMessage: "칼국수는 맛있게 드셨나요? 다음은 국립중앙과학관이에요.",
-        },
-        {
-          time: "15:30",
-          placeName: "국립중앙과학관",
-          scheduleType: "flexible",
-          completionMessage: "과학관 관람은 어떠셨나요? 다음은 한빛탑이에요.",
-        },
-        {
-          time: "18:00",
-          placeName: "엑스포과학공원 한빛탑",
-          scheduleType: "flexible",
-          isTrigger: true,
-          completionMessage: "한빛탑 주변은 어떠셨나요? 오늘 여행은 여기까지예요.",
-        },
-        {
-          time: "20:00",
-          placeName: "여행 종료",
-          scheduleType: "fixed",
-          completionMessage: DEMO_GENERIC_CLOSING_MESSAGE,
+          completionMessage: "즐거운 대전 여행이었나요? 계획이 달라져도 여행은 계속되니까요.",
         },
       ],
     ],
@@ -546,27 +657,36 @@ export function triggerOrder(scenario: DemoScenario): number {
 }
 
 /**
- * (STEP 17, revised STEP 22 §3/§13-15) The item "current" the moment a demo
- * trip is created — the FIRST item of the trigger's own day. Every earlier
- * day is pre-completed (see `demoService.ts`), so a judge skips days that
- * already happened, but still has to walk the trigger day's own normal
- * stops ("여기까지 완료했어요" -> "다음 일정" a few times) before the variable
- * shows up — never landing on Re:Plan the instant the trip opens. When the
- * trigger is the trigger day's own first item (a short day), this is
- * unchanged from the STEP 17 "one step before" behavior.
+ * (STEP 22 §2) The scripted display date for `days` index `dayIndex` — a
+ * FIXED "10월 N일" narrative, always starting 2026-10-01, completely
+ * decoupled from the REAL anchored calendar date `buildDemoItinerary`
+ * assigns for Re:Plan eligibility (exactly the same decoupling
+ * `demoDisplayTime` already does for the clock — see its doc comment for
+ * why: Re:Plan only ever considers TODAY's remaining flexible items, so the
+ * real stored date must track the actual server clock, never a fixed
+ * calendar date, while the STORY the traveler sees can still read "10월
+ * 1일" no matter when the demo is actually run).
  */
-export function startingCurrentOrder(scenario: DemoScenario): number {
-  const itemsBeforeTriggerDay = scenario.days
-    .slice(0, scenario.triggerDayIndex)
-    .reduce((n, day) => n + day.length, 0);
-  return itemsBeforeTriggerDay + 1;
+export function demoDisplayDate(dayIndex: number): string {
+  return `10월 ${dayIndex + 1}일`;
 }
+
+/**
+ * (STEP 22 §4) The item "current" the moment a demo trip is created — ALWAYS
+ * the very first itinerary item. A demo trip never pre-completes any lead-in
+ * item and never starts mid-itinerary; the traveler walks every real "완료
+ * -> 다음" step from Day 1's first stop, including however many normal
+ * stops precede the trigger.
+ */
+export const DEMO_STARTING_ORDER = 1;
 
 /**
  * The scripted display time for itinerary `order` (1-based), or `null` when
  * `order` is out of the scenario's own range (should never happen for a real
  * demo trip). Decoupled from the item's real stored `time` — see
- * `buildDemoItinerary`'s doc comment.
+ * `buildDemoItinerary`'s doc comment. The very first item additionally shows
+ * `demoClockLabel` instead (see app/trip/[tripId]/page.tsx) — a fixed "it's
+ * about this time" narrative reading, the same one every judge sees.
  */
 export function demoDisplayTime(scenario: DemoScenario, order: number): string | null {
   return scenarioFlatItems(scenario)[order - 1]?.time ?? null;
@@ -619,9 +739,10 @@ export interface BuiltDemoItem {
  * reading (a separate STEP 17 fix — see that constant's doc comment for the
  * reordering bug this closes). Items on a DIFFERENT day keep their scripted
  * time; only the calendar date shifts, by the same number of days as the
- * trigger's day, so day-to-day spacing is preserved. The user-visible clock
- * is `demoDisplayTime`, computed separately — this function's output is
- * Re:Plan/sort plumbing only, never shown directly. Pure given `now`.
+ * trigger's day, so day-to-day spacing is preserved. The user-visible date
+ * is the fixed "10월 N일" story (`demoDisplayDate`) and the user-visible
+ * clock is `demoDisplayTime` — this function's output is Re:Plan/sort
+ * plumbing only, never shown directly. Pure given `now`.
  */
 export function buildDemoItinerary(
   scenario: DemoScenario,

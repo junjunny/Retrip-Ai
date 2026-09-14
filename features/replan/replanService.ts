@@ -19,6 +19,7 @@
  */
 import "server-only";
 
+import { applyDaejeonReplacementOverride } from "@/features/demo/demoReplanOverride";
 import { applyPlaceChoices, coerceItinerary, type PlaceChoice } from "@/features/trip";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { scoreTripCandidates, scoreTripCandidatesWithContext } from "@/features/scoring/scoringService";
@@ -58,7 +59,15 @@ async function loadItinerary(tripId: string) {
   if (!snap.exists) throw new TripNotFoundError();
   const data = snap.data() ?? {};
   const startDate = typeof data.startDate === "string" ? data.startDate : "";
-  return { ref, itinerary: coerceItinerary(data.itinerary, startDate) };
+  return {
+    ref,
+    itinerary: coerceItinerary(data.itinerary, startDate),
+    // read alongside the itinerary (same doc, no extra Firestore read) purely
+    // so the STEP 22 Demo-scenario override below knows which trip this is —
+    // see features/demo/demoReplanOverride.ts's module doc for why this one
+    // narrow connection exists and stays isolated from the real algorithm.
+    demoScenarioId: typeof data.demoScenarioId === "string" ? data.demoScenarioId : null,
+  };
 }
 
 export interface GenerateReplanPreviewOptions {
@@ -70,18 +79,19 @@ export interface GenerateReplanPreviewOptions {
 
 async function buildPreview(tripId: string, options: GenerateReplanPreviewOptions) {
   const now = options.now ?? new Date();
-  const [{ itinerary }, { slotRankings, travelState }] = await Promise.all([
+  const [{ itinerary, demoScenarioId }, { slotRankings, travelState }] = await Promise.all([
     loadItinerary(tripId),
     scoreTripCandidatesWithContext(tripId, { now, currentLocation: options.currentLocation }),
   ]);
 
-  const preview = buildReplanPreview({
+  const rawPreview = buildReplanPreview({
     tripId,
     generatedAt: now.toISOString(),
     itinerary,
     slotRankings,
     currentLocation: options.currentLocation,
   });
+  const preview = await applyDaejeonReplacementOverride(rawPreview, demoScenarioId, options.currentLocation ?? null);
   return { preview, travelState };
 }
 
@@ -157,7 +167,7 @@ export async function applyReplanPreview(
   tripId: string,
   options: ApplyReplanOptions,
 ): Promise<{ itinerary: ItineraryItem[]; changedCount: number }> {
-  const { ref, itinerary: liveItinerary } = await loadItinerary(tripId);
+  const { ref, itinerary: liveItinerary, demoScenarioId } = await loadItinerary(tripId);
 
   const liveFingerprint = computeItineraryFingerprint(liveItinerary);
   if (liveFingerprint !== options.baseItineraryFingerprint) {
@@ -173,13 +183,17 @@ export async function applyReplanPreview(
     now: Number.isNaN(now.getTime()) ? undefined : now,
     currentLocation: options.currentLocation,
   });
-  const preview = buildReplanPreview({
+  const rawPreview = buildReplanPreview({
     tripId,
     generatedAt: options.generatedAt,
     itinerary: liveItinerary,
     slotRankings,
     currentLocation: options.currentLocation,
   });
+  // Re-derives the SAME real-place swap Preview showed (see
+  // features/demo/demoReplanOverride.ts) — Apply must write exactly what was
+  // previewed, never a client-trusted value (module doc, STEP 13 §13).
+  const preview = await applyDaejeonReplacementOverride(rawPreview, demoScenarioId, options.currentLocation ?? null);
 
   const liveByOrder = new Map(liveItinerary.map((it) => [it.order, it]));
   const choices: { order: number; choice: PlaceChoice }[] = [];

@@ -10,11 +10,12 @@ import { ReplanPanel } from "@/components/trip/ReplanPanel";
 import type { PreviewMarker } from "@/components/trip/TripMap";
 import { TripParticipants } from "@/components/trip/TripParticipants";
 import {
+  DEMO_STARTING_ORDER,
   demoCompletionMessage,
+  demoDisplayDate,
   demoDisplayTime,
   getDemoScenario,
   scenarioFlatItems,
-  startingCurrentOrder,
   triggerOrder,
   type DemoScenario,
 } from "@/features/demo";
@@ -133,6 +134,11 @@ function dayNumber(trip: Trip, date: string): number {
   const days = [...new Set(trip.itinerary.map((it) => it.date))].sort();
   const i = days.indexOf(date);
   return i >= 0 ? i + 1 : 1;
+}
+
+/** How many distinct calendar days the trip's itinerary spans. */
+function dayCount(trip: Trip): number {
+  return new Set(trip.itinerary.map((it) => it.date)).size;
 }
 
 function TripView({ trip: initialTrip }: { trip: Trip }) {
@@ -310,13 +316,40 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
     setDisplayedCurrentOrder(firstCurrentOrder(trip.itinerary));
   }
 
+  // (STEP 22 §26/§39) the ONE shared ReplanPanel instance — placed
+  // immediately under the variable-state banner when there's something to
+  // react to, so the situation and its [Re:Plan] CTA sit on one screen
+  // without scrolling; otherwise it stays in its ordinary spot near the
+  // bottom. Never rendered twice — only ever positioned once per render.
+  const replanPanel = (
+    <ReplanPanel
+      tripId={trip.tripId}
+      itinerary={trip.itinerary}
+      tripPreference={trip.tripPreference}
+      fallbackSituation={situation}
+      onApplied={handleReplanApplied}
+      onPolylinePreview={setPreviewPolyline}
+      onPreviewMarker={setPreviewMarker}
+      journeyOrigin={journeyOrigin}
+    />
+  );
+  const isVariable = situation?.tier === "notable" && !pendingMessage;
+
   return (
     <article className="flex flex-col gap-8">
       <header className="flex flex-col gap-1">
         <p className="text-sm text-ink-muted">{trip.title}</p>
         <h1 className="text-3xl font-semibold tracking-tight text-ink">{trip.destination}</h1>
         <p className="text-sm tabular-nums text-ink-muted">
-          {fmtDate(trip.startDate)} — {fmtDate(trip.endDate)}
+          {demoScenario ? (
+            <>
+              {demoDisplayDate(0)} — {demoDisplayDate(dayCount(trip) - 1)}
+            </>
+          ) : (
+            <>
+              {fmtDate(trip.startDate)} — {fmtDate(trip.endDate)}
+            </>
+          )}
         </p>
       </header>
 
@@ -336,28 +369,44 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
       />
 
       {situation && !pendingMessage && (
-        // STEP 20 §1/§11: a "gentle" tier is one calm line and nothing
-        // else — no impact paragraph, no action prompt, no "여행에 변화가
-        // 생겼어요" framing. Only the "notable" tier (a real weatherRisk/
-        // trafficBurden "high", or a scripted demo situation) gets the
-        // full 상황->영향->선택 treatment, and even then it only ever
-        // NAMES that a choice exists — the real [Re:Plan] button below is
-        // what the user has to press by hand.
+        // STEP 20 §1/§11, redesigned STEP 22 §15-21: a "gentle" tier stays
+        // exactly as calm as before — one line, same body typography, same
+        // color, no card. Only the "notable" tier gets a screen the
+        // traveler can't mistake for a normal moment: a bigger headline,
+        // the situation's own keyword in the warm `warning` accent (never
+        // red), the affected stop named directly, and — placed right here,
+        // not scrolled away — the actual [Re:Plan] CTA (see `replanPanel`
+        // above). Still never decides anything: it only names that a
+        // choice exists, same as before.
         situation.tier === "gentle" ? (
           <p className="text-sm text-ink-muted">{situation.line}</p>
         ) : (
-          <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface-alt px-4 py-3">
-            <div className="flex flex-col gap-1">
-              <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+          <section className="animate-variable-enter flex flex-col gap-4 rounded-2xl border border-warning/40 bg-warning/10 px-4 py-4">
+            <div className="flex flex-col gap-2">
+              <p className="text-xl leading-snug font-semibold text-ink">
+                여행 흐름이 조금
+                <br />
+                달라졌어요.
+              </p>
+              <p className="flex items-center gap-1.5 text-base font-semibold text-warning">
                 {(() => {
                   const Icon = SITUATION_ICON[situation.kind] ?? Compass;
-                  return <Icon className="size-3.5 text-brand" aria-hidden />;
+                  return <Icon className="size-4.5 shrink-0" aria-hidden />;
                 })()}
                 {situation.line}
               </p>
-              {situation.impact && <p className="text-sm text-ink">{situation.impact}</p>}
+              {situation.impact && <p className="text-sm text-ink-muted">{situation.impact}</p>}
             </div>
-            <p className="text-sm font-medium text-ink">원한다면 남은 일정을 조금 다르게 이어갈 수 있어요.</p>
+
+            {currentItem && (
+              <div className="flex flex-col gap-0.5 rounded-xl border border-warning/30 bg-surface px-3.5 py-2.5">
+                <p className="text-xs font-medium text-ink-muted">영향받는 일정</p>
+                <p className="text-base font-semibold text-ink">{currentItem.placeName}</p>
+              </div>
+            )}
+
+            {replanPanel}
+
             {demoScenario && (
               <Link href="/demo" className="self-start text-xs text-ink-muted underline-offset-4 hover:text-brand hover:underline">
                 Demo 다시 시작
@@ -376,22 +425,13 @@ function TripView({ trip: initialTrip }: { trip: Trip }) {
           overlayPolyline={previewPolyline ?? segmentDrivingPolyline}
           previewMarker={previewMarker}
           currentOrder={displayedCurrentOrder}
+          affectedOrder={isVariable ? displayedCurrentOrder : null}
           demoDisplayTimes={demoDisplayTimes}
+          dayTabLabel={demoScenario ? (_date, i) => `${demoDisplayDate(i)} · DAY ${i + 1}` : undefined}
         />
       </section>
 
-      <section className="border-t border-line pt-4">
-        <ReplanPanel
-          tripId={trip.tripId}
-          itinerary={trip.itinerary}
-          tripPreference={trip.tripPreference}
-          fallbackSituation={situation}
-          onApplied={handleReplanApplied}
-          onPolylinePreview={setPreviewPolyline}
-          onPreviewMarker={setPreviewMarker}
-          journeyOrigin={journeyOrigin}
-        />
-      </section>
+      {!isVariable && <section className="border-t border-line pt-4">{replanPanel}</section>}
 
       <section className="border-t border-line pt-4">
         <TripParticipants tripId={trip.tripId} />
@@ -449,7 +489,6 @@ function JourneyCard({
   onAdvance: () => void;
 }) {
   const total = trip.itinerary.length;
-  const startingCurrent = demoScenario ? startingCurrentOrder(demoScenario) : null;
 
   if (currentOrder == null || !currentItem) {
     // (STEP 22 §43) a REAL count, never a fabricated number: an item whose
@@ -490,15 +529,17 @@ function JourneyCard({
   }
 
   const displayTime = (order: number, item: ItineraryItem) =>
-    (demoScenario && (order === startingCurrent ? demoScenario.demoClockLabel : demoDisplayTime(demoScenario, order))) ||
+    (demoScenario &&
+      (order === DEMO_STARTING_ORDER ? demoScenario.demoClockLabel : demoDisplayTime(demoScenario, order))) ||
     item.time;
 
   const driving = segmentMobility?.find((m) => m.mode === "DRIVING");
+  const dayIndex = dayNumber(trip, currentItem.date) - 1;
 
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-line px-4 py-3.5">
       <p className="text-xs font-medium text-ink-muted">
-        {trip.destination} · DAY {dayNumber(trip, currentItem.date)}
+        {trip.destination} · {demoScenario ? `${demoDisplayDate(dayIndex)} · ` : ""}DAY {dayIndex + 1}
         <span className="ms-2 tabular-nums">· {completedCount} / {total} 일정 완료</span>
       </p>
 

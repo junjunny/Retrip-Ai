@@ -1,24 +1,15 @@
 "use client";
 
-import { Cloud, CloudRain, CloudSnow, Sun, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, User } from "lucide-react";
+import { useState } from "react";
 
-import { PREFERENCE_ICON } from "@/components/trip/preferenceIcons";
-import { demoDisplayTime, type DemoScenario } from "@/features/demo";
+import { demoDisplayDate, demoDisplayTime, type DemoScenario, type DemoTraveler } from "@/features/demo";
 import { topExperienceHighlights } from "@/features/replan";
-import type { DailyOutlook, ForecastOutlook, ForecastOutlookKind } from "@/features/travel-state";
+import { PREFERENCE_ICON } from "@/components/trip/preferenceIcons";
 import type { Trip } from "@/types";
 
-const fmtDate = (d: string) => d.split("-").join(".");
-const OUTLOOK_ICON: Record<ForecastOutlookKind, typeof Sun> = {
-  clear: Sun,
-  cloudy: Cloud,
-  rain: CloudRain,
-  snow: CloudSnow,
-};
-
 /**
- * (STEP 22 §3/§4/§7/§11) "여행 설정 확인" — shown once, right after a demo
+ * (STEP 22 §3/§4/§7/§9-12) "여행 설정 확인" — shown once, right after a demo
  * trip is created and every place resolved, BEFORE the journey itself
  * starts. Turns "this demo has a real Trip Preference and 3 real
  * participants" into something a judge actually SEES before the first
@@ -28,9 +19,10 @@ const OUTLOOK_ICON: Record<ForecastOutlookKind, typeof Sun> = {
  * the ordinary `/submit` endpoint (features/demo/demoService.ts), and
  * `scenario.tripPreference` is `buildExperienceProfile` of their own real
  * vectors (features/demo/demoScenarios.ts) — never a separately hand-picked
- * value. The weather section calls the real KMA-backed endpoint and shows
- * an honest "아직 확인할 수 없어요" for any date outside its real forecast
- * window — never an invented forecast.
+ * value. The weather section shows the scenario's own DEMO-ONLY simulated
+ * outlook (never a real KMA forecast — see `DemoWeatherOutlook`'s doc
+ * comment) with an explicit "DEMO 상황" label, so it can never be mistaken
+ * for real weather (STEP 22 §3, the DEMO SCENARIO ≠ PRODUCTION boundary).
  */
 export function DemoTripSetup({
   scenario,
@@ -41,59 +33,31 @@ export function DemoTripSetup({
   trip: Trip;
   onStart: () => void;
 }) {
-  const [outlook, setOutlook] = useState<DailyOutlook[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/trip/${trip.tripId}/weather-outlook`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled) setOutlook((data?.days as DailyOutlook[] | undefined) ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setOutlook([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [trip.tripId]);
-
   const days = [...new Set(trip.itinerary.map((i) => i.date))].sort();
-  const outlookByDate = new Map((outlook ?? []).map((d) => [d.date, d]));
   const highlights = topExperienceHighlights(scenario.tripPreference);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-7 px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-1">
-        <p className="text-sm text-ink-muted">{scenario.cardDuration}</p>
+        <p className="text-sm text-ink-muted">{scenario.conceptTagline}</p>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">{scenario.title}</h1>
+        <p className="text-sm tabular-nums text-ink-muted">
+          {demoDisplayDate(0)} — {demoDisplayDate(days.length - 1)} · {scenario.cardDuration}
+        </p>
       </div>
 
       <section className="flex flex-col gap-2.5">
         <h2 className="text-sm font-medium text-ink-muted">{scenario.travelers.length}명의 여행</h2>
         <ul className="flex flex-col gap-2">
           {scenario.travelers.map((t) => (
-            <li key={t.name} className="flex items-start gap-3 rounded-xl border border-line px-3.5 py-3">
-              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-alt text-ink-muted">
-                <User className="size-4" aria-hidden />
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <p className="flex items-center gap-1.5 text-sm font-medium text-ink">
-                  {t.name}
-                  {t.role === "HOST" && (
-                    <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-normal text-brand">방장</span>
-                  )}
-                </p>
-                <p className="text-sm text-ink-muted">{t.blurb}</p>
-              </div>
-            </li>
+            <TravelerCard key={t.name} traveler={t} />
           ))}
         </ul>
       </section>
 
       {highlights.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-ink-muted">우리가 이번 여행에서 중요하게 생각하는 것</h2>
+          <h2 className="text-sm font-medium text-ink-muted">이번 여행에서 중요한 것</h2>
           <ul className="flex flex-wrap gap-1.5">
             {highlights.map((h) => {
               const Icon = PREFERENCE_ICON[h.key];
@@ -115,20 +79,17 @@ export function DemoTripSetup({
         <h2 className="text-sm font-medium text-ink-muted">전체 일정</h2>
         {days.map((date, i) => {
           const items = trip.itinerary.filter((it) => it.date === date);
-          const dayOutlook = outlookByDate.get(date);
+          const outlook = scenario.dailyWeather[i];
           return (
             <div key={date} className="flex flex-col gap-2 rounded-xl border border-line px-3.5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <p className="text-sm font-medium text-ink">
-                  DAY {i + 1} <span className="text-ink-muted">· {fmtDate(date)}</span>
+                  {demoDisplayDate(i)} <span className="text-ink-muted">· DAY {i + 1}</span>
                 </p>
-                {outlook != null && (
+                {outlook && (
                   <div className="flex items-center gap-3 text-xs text-ink-muted">
-                    {dayOutlook?.am && <OutlookBadge outlook={dayOutlook.am} label="오전" />}
-                    {dayOutlook?.pm && <OutlookBadge outlook={dayOutlook.pm} label="오후" />}
-                    {dayOutlook && !dayOutlook.am && !dayOutlook.pm && (
-                      <span>아직 정확한 예보를 확인할 수 없어요</span>
-                    )}
+                    <span>오전 {outlook.am}</span>
+                    <span>오후 {outlook.pm}</span>
                   </div>
                 )}
               </div>
@@ -145,6 +106,9 @@ export function DemoTripSetup({
             </div>
           );
         })}
+        <p className="text-xs text-ink-muted">
+          ※ 위 날씨는 Demo 상황을 위한 예시예요. 실제 여행에서는 그날의 진짜 날씨에 맞춰 같은 과정이 일어나요.
+        </p>
       </section>
 
       <button
@@ -158,13 +122,68 @@ export function DemoTripSetup({
   );
 }
 
-function OutlookBadge({ outlook, label }: { outlook: ForecastOutlook; label: string }) {
-  const Icon = OUTLOOK_ICON[outlook.kind];
+/**
+ * (STEP 22 §9/§10/§33) Collapsed: name, role, top-3 preference labels.
+ * Expanded (tap anywhere on the card): every named axis as a bar, in the
+ * traveler's own words — never the internal 8-key scoring labels — plus
+ * their one-line travel-style sentence. `aria-expanded`/`aria-controls`
+ * make the disclosure relationship explicit for assistive tech; a plain
+ * inline expand (not a dialog/sheet) reads most naturally at 390px for a
+ * list the traveler is already scrolling through.
+ */
+function TravelerCard({ traveler }: { traveler: DemoTraveler }) {
+  const [open, setOpen] = useState(false);
+  const panelId = `traveler-${traveler.name}`;
+  const topLabels = traveler.displayPreferences.slice(0, 3).map((p) => p.label);
+
   return (
-    <span className="flex items-center gap-1">
-      {label}
-      <Icon className="size-3.5" aria-hidden />
-      {outlook.label}
-    </span>
+    <li className="rounded-xl border border-line">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="flex w-full min-h-11 items-start gap-3 px-3.5 py-3 text-left"
+      >
+        <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-alt text-ink-muted">
+          <User className="size-4" aria-hidden />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+            {traveler.name}
+            {traveler.role === "HOST" && (
+              <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-normal text-brand">방장</span>
+            )}
+          </span>
+          <span className="truncate text-sm text-ink-muted">{topLabels.join(" · ")}</span>
+        </span>
+        <ChevronDown
+          className={`mt-1.5 size-4 shrink-0 text-ink-muted transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden
+        />
+      </button>
+
+      {open && (
+        <div id={panelId} className="flex flex-col gap-3 border-t border-line px-3.5 py-3.5">
+          <ul className="flex flex-col gap-2">
+            {traveler.displayPreferences.map(({ label, value }) => (
+              <li key={label} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between text-xs text-ink-muted">
+                  <span>{label}</span>
+                  <span className="tabular-nums">{value}</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-alt">
+                  <div
+                    className="h-full rounded-full bg-brand"
+                    style={{ width: `${(value / 10) * 100}%` }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm leading-relaxed text-ink">&ldquo;{traveler.blurb}&rdquo;</p>
+        </div>
+      )}
+    </li>
   );
 }

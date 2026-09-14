@@ -43,7 +43,9 @@ export function ItineraryPlaces({
   overlayPolyline,
   previewMarker,
   currentOrder,
+  affectedOrder,
   demoDisplayTimes,
+  dayTabLabel,
 }: {
   trip: Trip;
   /** a Re:Plan candidate's real route geometry to overlay on the map (STEP 13 §11) — see ReplanPanel's `onPolylinePreview`. */
@@ -52,8 +54,23 @@ export function ItineraryPlaces({
   previewMarker?: PreviewMarker | null;
   /** the trip's current itinerary `order` (STEP 17/18), or `null` once every item is completed. */
   currentOrder?: number | null;
+  /**
+   * (STEP 22 §20/§21) the ONE itinerary order a real "notable"-tier
+   * situation is about to affect — highlighted distinctly from the plain
+   * ●/current marker so the ONE row Re:Plan would touch stands out from
+   * everything that stays exactly as it was. `null`/omitted the rest of
+   * the time (a normal moment never singles out a row).
+   */
+  affectedOrder?: number | null;
   /** order -> a demo scenario's own scripted clock reading (STEP 17) — shown instead of the item's real stored `time`, which for a DEMO trip is internal Re:Plan-eligibility plumbing, not a real schedule (see demoScenarios.ts's `buildDemoItinerary`). Omitted for every ordinary trip, which always shows its real `item.time`. */
   demoDisplayTimes?: Record<number, string>;
+  /**
+   * (STEP 22 §2/§43) overrides a day tab's label (e.g. "10월 1일 · DAY 1")
+   * with a demo's fixed narrative date instead of the real anchored
+   * calendar date — same decoupling `demoDisplayTimes` already does for the
+   * clock. Omitted for every ordinary trip, which always shows its real date.
+   */
+  dayTabLabel?: (date: string, dayIndex: number) => string;
 }) {
   const [items, setItems] = useState<ItineraryItem[]>(trip.itinerary ?? []);
   const [activeOrder, setActiveOrder] = useState<number | null>(null);
@@ -133,7 +150,7 @@ export function ItineraryPlaces({
                 d === activeDay ? "border-brand bg-brand text-brand-ink" : "border-line text-ink-muted"
               }`}
             >
-              Day {i + 1} · {fmtDate(d).slice(5)} ({dayLabel(d)})
+              {dayTabLabel ? dayTabLabel(d, i) : `Day ${i + 1} · ${fmtDate(d).slice(5)} (${dayLabel(d)})`}
             </button>
           ))}
         </div>
@@ -155,6 +172,7 @@ export function ItineraryPlaces({
           const isLast = i === visibleItems.length - 1;
           const isDone = item.status === "completed";
           const isCurrent = item.order === currentOrder;
+          const isAffected = item.order === affectedOrder;
           const displayTime = demoDisplayTimes?.[item.order] || item.time;
           return (
             <li key={item.order} className={`relative flex gap-3 pb-4 ${isDone ? "opacity-50" : ""}`}>
@@ -162,13 +180,15 @@ export function ItineraryPlaces({
               <div className="flex flex-col items-center">
                 <span
                   className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                    isCurrent
-                      ? "bg-accent text-accent-ink ring-2 ring-accent/40"
-                      : isDone
-                        ? "bg-surface-alt text-ink-muted"
-                        : "bg-surface-alt text-ink-muted/60 ring-1 ring-inset ring-line"
+                    isAffected
+                      ? "bg-warning text-warning-ink ring-2 ring-warning/40"
+                      : isCurrent
+                        ? "bg-accent text-accent-ink ring-2 ring-accent/40"
+                        : isDone
+                          ? "bg-surface-alt text-ink-muted"
+                          : "bg-surface-alt text-ink-muted/60 ring-1 ring-inset ring-line"
                   }`}
-                  aria-label={isDone ? "완료" : isCurrent ? "지금" : "다음"}
+                  aria-label={isDone ? "완료" : isAffected ? "영향받는 일정" : isCurrent ? "지금" : "다음"}
                 >
                   {isDone ? "✓" : isCurrent ? "●" : "○"}
                 </span>
@@ -177,9 +197,16 @@ export function ItineraryPlaces({
 
               <div
                 className={`min-w-0 flex-1 rounded-xl p-3 transition-colors ${
-                  active ? "bg-brand/5" : ""
+                  isAffected
+                    ? "border border-warning/40 bg-warning/10"
+                    : active
+                      ? "bg-brand/5"
+                      : ""
                 }`}
               >
+                {isAffected && (
+                  <p className="mb-1 text-xs font-medium text-warning">영향을 받을 수 있어요</p>
+                )}
                 <button
                   type="button"
                   onClick={() =>
