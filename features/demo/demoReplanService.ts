@@ -42,13 +42,13 @@ import {
   type ReplanPreview,
   type ReplanSlotProposal,
 } from "@/features/replan/replan";
-import { buildMobilityOptions } from "@/features/mobility";
+import { buildMobilityOptions, forceFreeFlowTraffic } from "@/features/mobility";
 import { applyPlaceChoices, coerceItinerary } from "@/features/trip";
 import { TripNotFoundError } from "@/features/trip/tripAdminService";
 import { fetchDrivingRoute } from "@/lib/api";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { resolvePlace } from "@/lib/place/resolve";
-import type { CandidatePlace, ItineraryItem, PlaceSource, RiskLevel } from "@/types";
+import type { CandidatePlace, ItineraryItem, MobilityOption, PlaceSource, RiskLevel } from "@/types";
 
 function requireDb() {
   const db = getAdminDb();
@@ -112,7 +112,9 @@ async function resolveFixedPlace(disruption: DemoDisruption): Promise<CandidateP
       longitude: resolved.longitude,
       category: null,
       tourApiContentId: resolved.tourApiContentId,
-      imageUrl: resolved.tourApiImageUrl,
+      // Demo-fixed image (STEP 24 §1) always wins over whatever the real
+      // API returned — never the reverse, and never overwritten later.
+      imageUrl: disruption.replacement.demoImagePath ?? resolved.tourApiImageUrl,
       source: (resolved.sources[0] ?? "kakao") as PlaceSource,
       verificationStatus: resolved.verificationStatus,
       candidateReason: "Demo 시나리오 고정 대안",
@@ -120,6 +122,37 @@ async function resolveFixedPlace(disruption: DemoDisruption): Promise<CandidateP
   } catch {
     return null;
   }
+}
+
+/**
+ * STEP 24 §2 — a hard-locked distance/duration for one known-unreliable demo
+ * replacement (see 대청호 명상정원's `fixedRoute`, features/demo/demoScenarios.ts:
+ * its coordinate mismatch makes the real Kakao Mobility driving lookup fail
+ * outright, not just return an imprecise number). Since the real lookup has
+ * nothing usable to correct, this DELIBERATELY forces the DRIVING option
+ * available with these author-given values (never invented — the user
+ * supplied the exact figures) rather than only patching an already-available
+ * option; the real polyline/map is kept when the real lookup did return one,
+ * and left empty (no route line) otherwise — never a fabricated geometry.
+ */
+function applyFixedRouteOverride(
+  mobility: readonly MobilityOption[],
+  fixedRoute: DemoDisruption["replacement"]["fixedRoute"],
+): MobilityOption[] {
+  if (!fixedRoute) return [...mobility];
+  return mobility.map((o) =>
+    o.mode === "DRIVING"
+      ? {
+          ...o,
+          available: true,
+          distanceMeters: fixedRoute.distanceMeters,
+          durationMinutes: Math.round(fixedRoute.durationSeconds / 60),
+          trafficLabel: "원활",
+          source: o.source ?? "kakao-mobility",
+          failureReason: null,
+        }
+      : o,
+  );
 }
 
 async function buildReplaceSlot(
@@ -144,7 +177,7 @@ async function buildReplaceSlot(
     longitude: null,
     category: null,
     tourApiContentId: null,
-    imageUrl: null,
+    imageUrl: disruption.replacement.demoImagePath ?? null,
     source: "kakao",
     verificationStatus: "unresolved",
     candidateReason: "Demo 시나리오 고정 대안",
@@ -185,7 +218,7 @@ async function buildReplaceSlot(
         finalScore: 100,
       },
       route: route ? { durationSeconds: route.durationSeconds, distanceMeters: route.distanceMeters } : null,
-      mobility: buildMobilityOptions(route),
+      mobility: forceFreeFlowTraffic(applyFixedRouteOverride(buildMobilityOptions(route), disruption.replacement.fixedRoute)),
     },
     options: [],
   };

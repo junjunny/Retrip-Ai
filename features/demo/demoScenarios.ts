@@ -136,6 +136,22 @@ export interface DemoWeatherOutlook {
 export interface DemoReplacement {
   placeName: string;
   resolveQuery?: string;
+  /**
+   * A demo-fixed local image (STEP 24 §1) — served from `public/images/demo/`
+   * and referenced by absolute path (e.g. "/images/demo/jeonju/foo.jpg").
+   * Always wins over the real TourAPI image when present (see
+   * `resolveFixedPlace` in demoReplanService.ts); `undefined` leaves the
+   * existing real-image-or-fallback behavior untouched.
+   */
+  demoImagePath?: string;
+  /**
+   * A hard-locked driving distance/duration for this one replacement (STEP
+   * 24 §2) — used ONLY when the real Kakao Mobility result for this specific
+   * candidate is known to be unreliable (see 대청호 명상정원 below); the real
+   * route polyline/map is still fetched and shown untouched. Never used to
+   * fabricate a route where none exists.
+   */
+  fixedRoute?: { distanceMeters: number; durationSeconds: number };
 }
 
 /** A scripted situation the traveler encounters when they reach this item — see the module doc comment. */
@@ -232,7 +248,13 @@ export const DEMO_GENERIC_CLOSING_MESSAGE = JOURNEY_GENERIC_CLOSING_MESSAGE;
  *   name "대청호 명상정원" resolves to a DIFFERENT, lower-confidence Kakao-
  *   only match at a nearby but wrong address — so `resolveQuery: "명상정원"`
  *   is used to reliably hit the correct real place while the display name
- *   stays exactly what the scenario specifies.
+ *   stays exactly what the scenario specifies. That same coordinate mismatch
+ *   also made its real Kakao Mobility driving distance/time unreliable, so
+ *   (STEP 24 §2) this one replacement carries a `fixedRoute` override
+ *   (15km / 25min) instead — the real route polyline/map is untouched.
+ * - 다리미 삼겹살 / 또또국수 / 롯데시티호텔 대전 (구 "유성호텔"): all pinned by
+ *   `resolveAddress` (STEP 24) to the exact real branch the scenario means,
+ *   same mechanism 베테랑 already used.
  */
 export const DEMO_SCENARIOS: readonly DemoScenario[] = [
   {
@@ -333,7 +355,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
             situationLine: "인파 몰림으로 관람이 불편해지고 있어요.",
             impactLine: "지금 인파라면 편하게 둘러보기 어려울 수 있어요.",
             situationKind: "crowd",
-            replacement: { placeName: "국립무형유산원" },
+            replacement: { placeName: "국립무형유산원", demoImagePath: "/images/demo/jeonju/gungnip-muhyeong-yusanwon.png" },
           },
         },
         {
@@ -381,6 +403,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
           placeName: "다리미 삼겹살",
           scheduleType: "flexible",
           completionMessage: "삼겹살은 맛있게 드셨나요? 둘째 날 여행은 여기까지예요.",
+          resolveAddress: "전북특별자치도 완주군 이서면 갈산리 663-4",
         },
         {
           date: "2026-10-02",
@@ -397,6 +420,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
           placeName: "또또국수",
           scheduleType: "flexible",
           completionMessage: "아침 식사는 어떠셨나요? 마지막 코스로 이동해볼게요.",
+          resolveAddress: "전북특별자치도 완주군 이서면 갈산리 664-9",
         },
         {
           date: "2026-10-03",
@@ -534,7 +558,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
             situationLine: "갑작스러운 소나기가 내리고 있어요.",
             impactLine: "지금 계획대로 진행하면 원래 기대했던 야외 경험과 달라질 수 있어요.",
             situationKind: "weather",
-            replacement: { placeName: "씨라이프 부산 아쿠아리움" },
+            replacement: { placeName: "씨라이프 부산 아쿠아리움", demoImagePath: "/images/demo/busan/sealife-busan-aquarium.png" },
           },
         },
       ],
@@ -623,7 +647,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
             situationLine: "대기 줄이 너무 길어지고 있어요.",
             impactLine: "지금 웨이팅이라면 남은 일정의 체력을 지키기 어려울 수 있어요.",
             situationKind: "crowd",
-            replacement: { placeName: "정동문화사" },
+            replacement: { placeName: "정동문화사", demoImagePath: "/images/demo/daejeon/jeongdong-culture.png" },
           },
         },
         {
@@ -636,9 +660,10 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
         {
           date: "2026-10-01",
           time: "19:00",
-          placeName: "유성호텔",
+          placeName: "롯데시티호텔 대전",
           scheduleType: "fixed",
           completionMessage: "첫째 날 여행은 여기까지예요. 둘째 날 일정을 이어가볼게요.",
+          resolveAddress: "대전 유성구 도룡동 4-30",
         },
       ],
       [
@@ -676,7 +701,11 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
             // display name per spec; the real search string that reliably
             // matches the correct, TourAPI-verified record differs — see
             // module doc comment above.
-            replacement: { placeName: "대청호 명상정원", resolveQuery: "명상정원" },
+            replacement: {
+              placeName: "대청호 명상정원",
+              resolveQuery: "명상정원",
+              fixedRoute: { distanceMeters: 15000, durationSeconds: 25 * 60 },
+            },
           },
         },
       ],

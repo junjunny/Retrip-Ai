@@ -120,7 +120,7 @@ describe("부산 itinerary hard lock (§5/§27 — absolute check)", () => {
 describe("대전 itinerary hard lock (§6/§27)", () => {
   it("Day 1 matches the spec exactly, in order", () => {
     const day1 = daejeon().days[0].map((it) => it.placeName);
-    expect(day1).toEqual(["광천식당", "성심당 본점", "대동하늘공원", "유성호텔"]);
+    expect(day1).toEqual(["광천식당", "성심당 본점", "대동하늘공원", "롯데시티호텔 대전"]);
   });
   it("Day 2 matches the spec exactly, in order", () => {
     const day2 = daejeon().days[1].map((it) => it.placeName);

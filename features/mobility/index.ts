@@ -3,6 +3,7 @@ export {
   MOBILITY_UNAVAILABLE_REASON,
   buildDrivingOption,
   buildMobilityOptions,
+  forceFreeFlowTraffic,
   summarizeTrafficState,
   trafficStateLabel,
 } from "./mobility";

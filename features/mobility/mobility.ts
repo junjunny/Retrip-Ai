@@ -86,3 +86,14 @@ export function buildDrivingOption(route: RouteData | null): MobilityOption {
 export function buildMobilityOptions(route: RouteData | null): MobilityOption[] {
   return [unavailableOption("WALK"), buildDrivingOption(route), unavailableOption("TRANSIT")];
 }
+
+/**
+ * Demo Mode only (STEP 24 §2) — forces the DRIVING option's displayed
+ * traffic label to "원활" while leaving its real duration/distance/polyline
+ * exactly as Kakao Mobility returned them. WALK/TRANSIT are untouched (out
+ * of this change's scope; they're already unavailable). Callers gate this on
+ * a trip's real `demoScenarioId` — never applied to an ordinary trip.
+ */
+export function forceFreeFlowTraffic(options: readonly MobilityOption[]): MobilityOption[] {
+  return options.map((o) => (o.mode === "DRIVING" && o.available ? { ...o, trafficLabel: "원활" } : o));
+}

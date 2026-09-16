@@ -11,7 +11,7 @@
  * `singleFlight`-coalesced per (tripId, from, to) so React Strict Mode's
  * dev-only double effect invocation can't double-fire it (STEP 14/18 §38).
  */
-import { buildMobilityOptions } from "@/features/mobility";
+import { buildMobilityOptions, forceFreeFlowTraffic } from "@/features/mobility";
 import { coerceItinerary } from "@/features/trip/trip";
 import { fetchDrivingRoute } from "@/lib/api";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -40,6 +40,9 @@ export async function GET(
       if (!snap.exists) return null;
       const data = snap.data() ?? {};
       const startDate = typeof data.startDate === "string" ? data.startDate : "";
+      // (STEP 24 §2) real, stable demo flag already stored on the trip —
+      // never inferred from destination name or itinerary text.
+      const isDemo = typeof data.demoScenarioId === "string" && data.demoScenarioId.length > 0;
       const itinerary = coerceItinerary(data.itinerary, startDate);
       const from = itinerary.find((it) => it.order === fromOrder);
       const to = itinerary.find((it) => it.order === toOrder);
@@ -51,7 +54,8 @@ export async function GET(
         origin: { latitude: from.latitude, longitude: from.longitude },
         destination: { latitude: to.latitude, longitude: to.longitude },
       }).catch(() => null);
-      return buildMobilityOptions(route);
+      const mobility = buildMobilityOptions(route);
+      return isDemo ? forceFreeFlowTraffic(mobility) : mobility;
     });
 
     if (!mobility) return Response.json({ error: "일정을 찾을 수 없습니다." }, { status: 404 });
