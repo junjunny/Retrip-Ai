@@ -266,7 +266,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     cardDuration: "2박 3일",
     travelers: [
       traveler(
-        "민준",
+        "준희",
         "HOST",
         [
           { label: "문화·역사", value: 9 },

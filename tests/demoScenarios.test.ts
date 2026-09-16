@@ -222,8 +222,8 @@ describe("DEMO_SCENARIOS travelers (STEP 22/23 §7-9)", () => {
     }
   });
 
-  it("names match the hard lock exactly: 전주=민준/서연/도윤, 부산=준호/승찬/현우, 대전=현준/유나/태현", () => {
-    expect(jeonju().travelers.map((t) => t.name)).toEqual(["민준", "서연", "도윤"]);
+  it("names match the hard lock exactly: 전주=준희/서연/도윤, 부산=준호/승찬/현우, 대전=현준/유나/태현", () => {
+    expect(jeonju().travelers.map((t) => t.name)).toEqual(["준희", "서연", "도윤"]);
     expect(busan().travelers.map((t) => t.name)).toEqual(["준호", "승찬", "현우"]);
     expect(daejeon().travelers.map((t) => t.name)).toEqual(["현준", "유나", "태현"]);
   });
@@ -241,7 +241,7 @@ describe("DEMO_SCENARIOS travelers (STEP 22/23 §7-9)", () => {
       { label: "카페·휴식", value: 4 },
     ]);
   });
-  it("민준's display preferences match the brief exactly", () => {
+  it("준희's display preferences match the brief exactly", () => {
     expect(jeonju().travelers[0].displayPreferences).toEqual([
       { label: "문화·역사", value: 9 },
       { label: "골목·산책", value: 9 },
