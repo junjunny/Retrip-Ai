@@ -63,6 +63,33 @@ export default function Home() {
           body="날씨나 시간이 달라졌다면 Re:Plan을 눌러 남은 일정만 다시 살펴봐요. 적용은 항상 직접 선택해요."
         />
       </section>
+
+      {/* 실제 화면 캡처 — 부산 데모에서 소나기로 자갈치 시장 일정에 영향이
+          생겨, "이 일정만" 부평깡통시장으로 바뀌는 Re:Plan 화면 그대로. */}
+      <section className="flex flex-col items-center gap-3 px-6 pb-14 sm:px-10">
+        <p className="text-sm font-medium text-ink">이런 순간에, 이렇게 이어가요</p>
+        <div className="w-full max-w-xs overflow-hidden rounded-2xl border border-line">
+          <Image
+            src="/product-replan.png"
+            alt="Re:Plan 화면: 소나기로 자갈치 시장 일정에 영향이 생기자, 나머지 일정은 그대로 두고 그 일정만 부평깡통시장으로 바꾸는 제안을 보여준다"
+            width={780}
+            height={1240}
+            className="w-full"
+          />
+        </div>
+        <p className="max-w-xs text-center text-xs leading-relaxed text-ink-muted">
+          전체 일정을 다시 짜지 않아요. 영향을 받은 한 곳만, 원래 지키고 싶었던 경험을 살펴서 바꿔요.
+        </p>
+      </section>
+
+      <footer className="flex justify-center gap-4 px-6 pb-8 text-xs text-ink-muted/70">
+        <Link href="/terms" className="hover:text-brand hover:underline">
+          이용약관
+        </Link>
+        <Link href="/privacy" className="hover:text-brand hover:underline">
+          개인정보처리방침
+        </Link>
+      </footer>
     </main>
   );
 }
