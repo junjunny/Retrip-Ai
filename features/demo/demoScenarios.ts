@@ -442,7 +442,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
     travelers: [
       traveler(
         "준호",
-        "HOST",
+        "MEMBER",
         [
           { label: "바다", value: 10 },
           { label: "풍경", value: 9 },
@@ -458,7 +458,7 @@ export const DEMO_SCENARIOS: readonly DemoScenario[] = [
       ),
       traveler(
         "승찬",
-        "MEMBER",
+        "HOST",
         [
           { label: "사진", value: 10 },
           { label: "풍경", value: 10 },
